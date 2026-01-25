@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
-import { ArrowLeft, Trophy, Loader2, X } from 'lucide-react';
+import { ArrowLeft, Trophy, Loader2 } from 'lucide-react';
 
 const CreateTournament = () => {
     const { groupId } = useParams();
@@ -13,7 +13,6 @@ const CreateTournament = () => {
     const [loading, setLoading] = useState(true);
     const [creating, setCreating] = useState(false);
 
-    // Form state
     const [tournamentName, setTournamentName] = useState('');
     const [scoringType, setScoringType] = useState('standard_21');
 
@@ -71,37 +70,43 @@ const CreateTournament = () => {
 
     if (loading) {
         return (
-            <div className="flex justify-center py-20">
-                <Loader2 className="animate-spin" size={40} style={{ color: 'var(--accent-primary)' }} />
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '80px 0' }}>
+                <Loader2 className="animate-spin" size={36} style={{ color: 'var(--accent-primary)' }} />
             </div>
         );
     }
 
     return (
-        <div className="max-w-2xl mx-auto">
-            <button
-                onClick={() => navigate(`/groups/${groupId}`)}
-                className="flex items-center gap-2 mb-6 font-medium"
-                style={{ color: 'var(--accent-primary)' }}
-            >
-                <ArrowLeft size={20} />
+        <div>
+            {/* Back Button */}
+            <button onClick={() => navigate(`/groups/${groupId}`)} className="back-button">
+                <ArrowLeft size={18} />
                 Back to {group?.name}
             </button>
 
-            <div className="card">
-                <div className="flex items-center gap-4 mb-6 pb-6" style={{ borderBottom: '1px solid var(--border-color)' }}>
-                    <div className="p-3 rounded-xl" style={{ backgroundColor: 'rgba(65, 105, 225, 0.1)' }}>
+            {/* Form Card */}
+            <div className="card" style={{ maxWidth: '560px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px', paddingBottom: '24px', borderBottom: '1px solid var(--border-color)' }}>
+                    <div style={{
+                        padding: '16px',
+                        borderRadius: '14px',
+                        backgroundColor: 'rgba(79, 70, 229, 0.1)'
+                    }}>
                         <Trophy size={28} style={{ color: 'var(--accent-primary)' }} />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Create Tournament</h1>
-                        <p style={{ color: 'var(--text-muted)' }}>Set up a new tournament for {group?.name}</p>
+                        <h1 style={{ fontSize: '22px', fontWeight: 700, marginBottom: '4px', color: 'var(--text-primary)' }}>
+                            Create Tournament
+                        </h1>
+                        <p style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
+                            Set up a new tournament for {group?.name}
+                        </p>
                     </div>
                 </div>
 
-                <form onSubmit={handleCreate} className="space-y-6">
-                    <div>
-                        <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+                <form onSubmit={handleCreate}>
+                    <div style={{ marginBottom: '24px' }}>
+                        <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, marginBottom: '8px', color: 'var(--text-primary)' }}>
                             Tournament Name
                         </label>
                         <input
@@ -114,8 +119,8 @@ const CreateTournament = () => {
                         />
                     </div>
 
-                    <div>
-                        <label className="block text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+                    <div style={{ marginBottom: '24px' }}>
+                        <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, marginBottom: '8px', color: 'var(--text-primary)' }}>
                             Scoring Type
                         </label>
                         <select
@@ -125,41 +130,42 @@ const CreateTournament = () => {
                         >
                             <option value="standard_21">Standard (Best of 3, 21 points)</option>
                             <option value="single_30">Single Set (30 points)</option>
-                            <option value="custom">Custom</option>
+                            <option value="quick_15">Quick Match (15 points)</option>
                         </select>
-                        <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
+                        <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px' }}>
                             Standard badminton scoring is best of 3 sets, first to 21 points.
                         </p>
                     </div>
 
-                    <div className="pt-4" style={{ borderTop: '1px solid var(--border-color)' }}>
-                        <p className="text-sm mb-4" style={{ color: 'var(--text-muted)' }}>
-                            👥 {members.length} members available for team generation
-                        </p>
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '16px',
+                        borderRadius: '12px',
+                        backgroundColor: 'rgba(79, 70, 229, 0.05)',
+                        marginBottom: '24px'
+                    }}>
+                        <span style={{ fontSize: '20px' }}>👥</span>
+                        <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
+                            {members.length} members available for team generation
+                        </span>
+                    </div>
 
-                        <div className="flex gap-3 justify-end">
-                            <button
-                                type="button"
-                                onClick={() => navigate(`/groups/${groupId}`)}
-                                className="btn-secondary"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="submit"
-                                disabled={creating || !tournamentName.trim()}
-                                className="btn-primary flex items-center gap-2"
-                            >
-                                {creating ? (
-                                    <>
-                                        <Loader2 className="animate-spin" size={18} />
-                                        Creating...
-                                    </>
-                                ) : (
-                                    'Create Tournament'
-                                )}
-                            </button>
-                        </div>
+                    <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', paddingTop: '20px', borderTop: '1px solid var(--border-color)' }}>
+                        <button type="button" onClick={() => navigate(`/groups/${groupId}`)} className="btn-secondary">
+                            Cancel
+                        </button>
+                        <button type="submit" disabled={creating || !tournamentName.trim()} className="btn-primary">
+                            {creating ? (
+                                <>
+                                    <Loader2 className="animate-spin" size={16} />
+                                    Creating...
+                                </>
+                            ) : (
+                                'Create Tournament'
+                            )}
+                        </button>
                     </div>
                 </form>
             </div>

@@ -66,7 +66,6 @@ const TournamentDetail = () => {
         setGenerating(true);
 
         try {
-            // Delete existing teams first
             await supabase.from('teams').delete().eq('tournament_id', tournamentId);
 
             const shuffled = [...members].sort(() => Math.random() - 0.5);
@@ -187,78 +186,68 @@ const TournamentDetail = () => {
 
     if (loading) {
         return (
-            <div className="flex justify-center py-20">
-                <Loader2 className="animate-spin" size={40} style={{ color: 'var(--accent-primary)' }} />
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '80px 0' }}>
+                <Loader2 className="animate-spin" size={36} style={{ color: 'var(--accent-primary)' }} />
             </div>
         );
     }
 
     if (!tournament) {
-        return <div className="text-center py-12" style={{ color: 'var(--text-muted)' }}>Tournament not found</div>;
+        return <div className="empty-state">Tournament not found</div>;
     }
 
     const assignedPlayerIds = teams.flatMap(t => t.team_members?.map(tm => tm.player_id) || []);
     const availableMembers = members.filter(m => !assignedPlayerIds.includes(m.id));
 
     return (
-        <div className="max-w-4xl mx-auto">
-            <button
-                onClick={() => navigate(`/groups/${tournament.group_id}`)}
-                className="flex items-center gap-2 mb-6 font-medium"
-                style={{ color: 'var(--accent-primary)' }}
-            >
-                <ArrowLeft size={20} />
+        <div>
+            {/* Back Button */}
+            <button onClick={() => navigate(`/groups/${tournament.group_id}`)} className="back-button">
+                <ArrowLeft size={18} />
                 Back to {tournament.groups?.name}
             </button>
 
             {/* Tournament Header */}
-            <div className="card mb-6">
-                <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-4">
-                        <div className="p-4 rounded-2xl" style={{ backgroundColor: 'rgba(65, 105, 225, 0.1)' }}>
-                            <Trophy size={32} style={{ color: 'var(--accent-primary)' }} />
-                        </div>
-                        <div>
-                            <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--text-primary)' }}>
-                                {tournament.name}
-                            </h1>
-                            <p style={{ color: 'var(--text-muted)' }}>
-                                Scoring: {tournament.scoring_type?.replace('_', ' ')}
-                            </p>
-                        </div>
+            <div className="card section-gap">
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: '20px' }}>
+                    <div style={{
+                        padding: '20px',
+                        borderRadius: '16px',
+                        backgroundColor: 'rgba(79, 70, 229, 0.1)'
+                    }}>
+                        <Trophy size={32} style={{ color: 'var(--accent-primary)' }} />
                     </div>
-                    <span
-                        className="px-4 py-1.5 rounded-full text-sm font-medium"
-                        style={{
-                            backgroundColor: tournament.status === 'active' ? '#D1FAE5' : 'rgba(65, 105, 225, 0.1)',
-                            color: tournament.status === 'active' ? '#10B981' : 'var(--accent-primary)'
-                        }}
-                    >
+                    <div style={{ flex: 1, minWidth: '200px' }}>
+                        <h1 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '8px', color: 'var(--text-primary)' }}>
+                            {tournament.name}
+                        </h1>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>
+                            Scoring: {tournament.scoring_type?.replace('_', ' ')}
+                        </p>
+                    </div>
+                    <span className={tournament.status === 'active' ? 'badge badge-success' : 'badge badge-primary'}>
                         {tournament.status === 'active' ? '🟢 Active' : '📝 Draft'}
                     </span>
                 </div>
             </div>
 
             {/* Teams Section */}
-            <div className="card mb-6">
-                <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-xl font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-                        <Users size={22} />
+            <div className="card section-gap">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+                    <h2 className="section-title">
+                        <Users size={20} />
                         Teams ({teams.length})
                     </h2>
                     {tournament.status === 'draft' && (
-                        <div className="flex gap-2">
-                            <button
-                                onClick={() => setShowAddTeamModal(true)}
-                                className="btn-secondary flex items-center gap-2 text-sm"
-                            >
+                        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                            <button onClick={() => setShowAddTeamModal(true)} className="btn-secondary">
                                 <Plus size={16} />
                                 Add Team
                             </button>
                             <button
                                 onClick={generateRandomTeams}
                                 disabled={generating || members.length < 4}
-                                className="btn-primary flex items-center gap-2 text-sm"
+                                className="btn-primary"
                             >
                                 {generating ? <Loader2 className="animate-spin" size={16} /> : <Shuffle size={16} />}
                                 Random Teams
@@ -268,39 +257,43 @@ const TournamentDetail = () => {
                 </div>
 
                 {teams.length === 0 ? (
-                    <div className="text-center py-10" style={{ color: 'var(--text-muted)' }}>
-                        <Users size={48} className="mx-auto mb-3 opacity-40" />
-                        <p className="mb-2">No teams yet</p>
-                        <p className="text-sm">Add teams manually or generate random teams</p>
+                    <div className="empty-state">
+                        <Users size={48} className="empty-state-icon" style={{ color: 'var(--accent-primary)' }} />
+                        <p style={{ marginBottom: '4px' }}>No teams yet</p>
+                        <p style={{ fontSize: '13px' }}>Add teams manually or generate random teams</p>
                     </div>
                 ) : (
-                    <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="grid-2">
                         {teams.map((team) => (
-                            <div
-                                key={team.id}
-                                className="p-4 rounded-xl relative group"
-                                style={{ backgroundColor: 'var(--bg-primary)', border: '1px solid var(--border-color)' }}
-                            >
+                            <div key={team.id} className="item-row" style={{ flexDirection: 'column', alignItems: 'stretch', position: 'relative' }}>
                                 {tournament.status === 'draft' && (
                                     <button
                                         onClick={() => deleteTeam(team.id)}
-                                        className="absolute top-2 right-2 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                                        style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#EF4444' }}
+                                        style={{
+                                            position: 'absolute',
+                                            top: '12px',
+                                            right: '12px',
+                                            padding: '6px',
+                                            borderRadius: '6px',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                            color: '#EF4444'
+                                        }}
                                     >
                                         <Trash2 size={14} />
                                     </button>
                                 )}
-                                <h3 className="font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>
+                                <h3 style={{ fontWeight: 600, marginBottom: '12px', color: 'var(--text-primary)' }}>
                                     {team.name}
                                 </h3>
-                                <div className="space-y-2">
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                     {team.team_members?.map((tm) => (
-                                        <div key={tm.player_id} className="flex items-center gap-2">
-                                            <div className="h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold text-white"
-                                                style={{ background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-dark))' }}>
+                                        <div key={tm.player_id} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                            <div className="avatar avatar-sm">
                                                 {tm.players?.full_name?.charAt(0) || tm.players?.email?.charAt(0)}
                                             </div>
-                                            <span className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                                            <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
                                                 {tm.players?.full_name || tm.players?.email}
                                             </span>
                                         </div>
@@ -312,10 +305,7 @@ const TournamentDetail = () => {
                 )}
 
                 {tournament.status === 'draft' && teams.length >= 2 && (
-                    <button
-                        onClick={startTournament}
-                        className="btn-primary w-full mt-6 flex items-center justify-center gap-2"
-                    >
+                    <button onClick={startTournament} className="btn-primary" style={{ width: '100%', marginTop: '20px' }}>
                         <Play size={18} />
                         Start Tournament ({teams.length} teams, {teams.length * (teams.length - 1) / 2} matches)
                     </button>
@@ -325,40 +315,22 @@ const TournamentDetail = () => {
             {/* Matches Section */}
             {matches.length > 0 && (
                 <div className="card">
-                    <h2 className="text-xl font-bold mb-4 flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-                        <Trophy size={22} />
+                    <h2 className="section-title" style={{ marginBottom: '20px' }}>
+                        <Trophy size={20} />
                         Matches ({matches.length})
                     </h2>
-                    <div className="space-y-4">
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                         {matches.map((match) => (
-                            <div
-                                key={match.id}
-                                className="p-4 rounded-xl cursor-pointer transition-all hover:shadow-md"
-                                style={{ backgroundColor: 'var(--bg-primary)', border: '1px solid var(--border-color)' }}
-                            >
-                                <div className="flex items-center justify-between">
-                                    <div className="flex-1">
-                                        <p className="font-semibold" style={{ color: 'var(--text-primary)' }}>
-                                            {match.team_a?.name}
-                                        </p>
-                                    </div>
-                                    <div className="px-4">
-                                        <span className="text-sm font-semibold px-3 py-1 rounded-full"
-                                            style={{ backgroundColor: 'var(--bg-surface)', color: 'var(--text-muted)', border: '1px solid var(--border-color)' }}>
-                                            VS
-                                        </span>
-                                    </div>
-                                    <div className="flex-1 text-right">
-                                        <p className="font-semibold" style={{ color: 'var(--text-primary)' }}>
-                                            {match.team_b?.name}
-                                        </p>
-                                    </div>
+                            <div key={match.id} className="item-row" style={{ justifyContent: 'space-between' }}>
+                                <div style={{ flex: 1, textAlign: 'center' }}>
+                                    <p style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{match.team_a?.name}</p>
                                 </div>
-                                {match.winner_team_id && (
-                                    <div className="mt-2 pt-2 text-center text-sm" style={{ borderTop: '1px solid var(--border-color)', color: '#10B981' }}>
-                                        Winner: {match.winner_team_id === match.team_a_id ? match.team_a?.name : match.team_b?.name}
-                                    </div>
-                                )}
+                                <div style={{ padding: '0 16px' }}>
+                                    <span className="badge badge-draft">VS</span>
+                                </div>
+                                <div style={{ flex: 1, textAlign: 'center' }}>
+                                    <p style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{match.team_b?.name}</p>
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -368,26 +340,22 @@ const TournamentDetail = () => {
             {/* Add Team Modal */}
             {showAddTeamModal && (
                 <>
-                    <div
-                        className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
-                        onClick={() => setShowAddTeamModal(false)}
-                    />
-                    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 pointer-events-none">
-                        <div className="card w-full max-w-md pointer-events-auto max-h-[80vh] overflow-y-auto">
-                            <div className="flex justify-between items-center mb-6">
-                                <h2 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Create Team</h2>
+                    <div className="modal-backdrop" onClick={() => setShowAddTeamModal(false)} />
+                    <div className="modal-container">
+                        <div className="card modal-content" style={{ maxHeight: '80vh', overflow: 'auto' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
+                                <h2 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)' }}>Create Team</h2>
                                 <button
                                     onClick={() => setShowAddTeamModal(false)}
-                                    className="p-2 rounded-lg"
-                                    style={{ color: 'var(--text-muted)' }}
+                                    style={{ padding: '8px', borderRadius: '8px', border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text-muted)' }}
                                 >
-                                    <X size={24} />
+                                    <X size={22} />
                                 </button>
                             </div>
 
-                            <form onSubmit={handleCreateTeam} className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-primary)' }}>
+                            <form onSubmit={handleCreateTeam}>
+                                <div style={{ marginBottom: '20px' }}>
+                                    <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, marginBottom: '8px', color: 'var(--text-primary)' }}>
                                         Team Name
                                     </label>
                                     <input
@@ -399,51 +367,63 @@ const TournamentDetail = () => {
                                     />
                                 </div>
 
-                                <div>
-                                    <label className="block text-sm font-medium mb-2" style={{ color: 'var(--text-primary)' }}>
+                                <div style={{ marginBottom: '20px' }}>
+                                    <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, marginBottom: '8px', color: 'var(--text-primary)' }}>
                                         Select Players ({selectedMembers.length} selected)
                                     </label>
-                                    <div className="space-y-2 max-h-48 overflow-y-auto p-2 rounded-xl" style={{ backgroundColor: 'var(--bg-primary)', border: '1px solid var(--border-color)' }}>
+                                    <div style={{
+                                        maxHeight: '200px',
+                                        overflow: 'auto',
+                                        padding: '12px',
+                                        borderRadius: '12px',
+                                        backgroundColor: 'var(--bg-primary)',
+                                        border: '1px solid var(--border-color)'
+                                    }}>
                                         {availableMembers.length === 0 ? (
-                                            <p className="text-sm text-center py-4" style={{ color: 'var(--text-muted)' }}>
+                                            <p style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)', fontSize: '14px' }}>
                                                 All members are already in teams
                                             </p>
                                         ) : (
-                                            availableMembers.map((member) => (
-                                                <label
-                                                    key={member.id}
-                                                    className="flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors"
-                                                    style={{ backgroundColor: selectedMembers.includes(member.id) ? 'rgba(65, 105, 225, 0.1)' : 'transparent' }}
-                                                >
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={selectedMembers.includes(member.id)}
-                                                        onChange={() => toggleMemberSelection(member.id)}
-                                                        className="w-4 h-4"
-                                                    />
-                                                    <span style={{ color: 'var(--text-primary)' }}>
-                                                        {member.full_name || member.email}
-                                                    </span>
-                                                </label>
-                                            ))
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                {availableMembers.map((member) => (
+                                                    <label
+                                                        key={member.id}
+                                                        style={{
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '12px',
+                                                            padding: '10px',
+                                                            borderRadius: '8px',
+                                                            cursor: 'pointer',
+                                                            backgroundColor: selectedMembers.includes(member.id) ? 'rgba(79, 70, 229, 0.1)' : 'transparent'
+                                                        }}
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedMembers.includes(member.id)}
+                                                            onChange={() => toggleMemberSelection(member.id)}
+                                                            style={{ width: '18px', height: '18px' }}
+                                                        />
+                                                        <span style={{ color: 'var(--text-primary)' }}>
+                                                            {member.full_name || member.email}
+                                                        </span>
+                                                    </label>
+                                                ))}
+                                            </div>
                                         )}
                                     </div>
                                 </div>
 
-                                <div className="flex gap-3 justify-end pt-4" style={{ borderTop: '1px solid var(--border-color)' }}>
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowAddTeamModal(false)}
-                                        className="btn-secondary"
-                                    >
+                                <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', paddingTop: '20px', borderTop: '1px solid var(--border-color)' }}>
+                                    <button type="button" onClick={() => setShowAddTeamModal(false)} className="btn-secondary">
                                         Cancel
                                     </button>
                                     <button
                                         type="submit"
                                         disabled={creatingTeam || !newTeamName.trim() || selectedMembers.length === 0}
-                                        className="btn-primary flex items-center gap-2"
+                                        className="btn-primary"
                                     >
-                                        {creatingTeam ? <Loader2 className="animate-spin" size={18} /> : null}
+                                        {creatingTeam ? <Loader2 className="animate-spin" size={16} /> : <Plus size={16} />}
                                         {creatingTeam ? 'Creating...' : 'Create Team'}
                                     </button>
                                 </div>
