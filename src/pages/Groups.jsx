@@ -22,14 +22,14 @@ const Groups = () => {
             const { data, error } = await supabase
                 .from('group_members')
                 .select(`
-          role,
-          groups (
-            id,
-            name,
-            image_url,
-            owner_id
-          )
-        `)
+                    role,
+                    groups (
+                        id,
+                        name,
+                        image_url,
+                        owner_id
+                    )
+                `)
                 .eq('player_id', user.id);
 
             if (error) throw error;
@@ -73,73 +73,88 @@ const Groups = () => {
     };
 
     return (
-        <div className="max-w-5xl mx-auto">
-            {/* Header Section */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+        <div>
+            {/* Header */}
+            <div className="header-row">
                 <div>
-                    <h1 className="text-3xl sm:text-4xl font-bold text-text mb-2">My Groups</h1>
-                    <p className="text-muted text-base">Manage your badminton circles</p>
+                    <h1 className="page-title">My Groups</h1>
+                    <p className="page-subtitle">Manage your badminton circles</p>
                 </div>
                 <button
                     onClick={() => setShowCreateModal(true)}
-                    className="btn-primary flex items-center justify-center gap-2 whitespace-nowrap self-start sm:self-auto"
+                    className="btn-primary"
                 >
-                    <Plus size={20} strokeWidth={2.5} />
-                    <span className="font-semibold">New Group</span>
+                    <Plus size={18} />
+                    New Group
                 </button>
             </div>
 
             {/* Content */}
             {loading ? (
-                <div className="flex justify-center py-20">
-                    <Loader2 className="animate-spin text-primary" size={40} />
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '80px 0' }}>
+                    <Loader2 className="animate-spin" size={36} style={{ color: 'var(--accent-primary)' }} />
                 </div>
             ) : groups.length === 0 ? (
-                <div className="card text-center py-20 px-6">
-                    <div className="bg-primary/10 p-8 rounded-3xl inline-flex mb-6">
-                        <Users size={56} className="text-primary" strokeWidth={1.5} />
-                    </div>
-                    <h3 className="text-2xl font-bold text-text mb-3">No groups yet</h3>
-                    <p className="text-muted text-lg max-w-md mx-auto mb-8">
+                <div className="card empty-state">
+                    <Users size={56} className="empty-state-icon" style={{ color: 'var(--accent-primary)' }} />
+                    <h3 style={{ fontSize: '20px', fontWeight: 600, marginBottom: '8px', color: 'var(--text-primary)' }}>
+                        No groups yet
+                    </h3>
+                    <p style={{ marginBottom: '24px', maxWidth: '300px', marginLeft: 'auto', marginRight: 'auto' }}>
                         Create a group to start organizing tournaments with your friends.
                     </p>
                     <button
                         onClick={() => setShowCreateModal(true)}
-                        className="btn-primary inline-flex items-center gap-2"
+                        className="btn-primary"
                     >
-                        <Plus size={20} />
+                        <Plus size={18} />
                         Create your first group
                     </button>
                 </div>
             ) : (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid-3">
                     {groups.map((item) => (
                         <Link
                             key={item.groups.id}
                             to={`/groups/${item.groups.id}`}
-                            className="card card-hover group cursor-pointer transition-all duration-200"
+                            className="card card-hover"
+                            style={{ textDecoration: 'none', display: 'block' }}
                         >
-                            <div className="flex items-center gap-4 mb-4">
-                                <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center text-2xl font-bold text-white shadow-lg flex-shrink-0">
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
+                                <div className="avatar avatar-lg">
                                     {item.groups.image_url ? (
-                                        <img src={item.groups.image_url} alt="" className="h-full w-full object-cover rounded-2xl" />
+                                        <img src={item.groups.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
                                     ) : (
                                         item.groups.name.charAt(0).toUpperCase()
                                     )}
                                 </div>
-                                <div className="flex-1 min-w-0">
-                                    <h3 className="font-semibold text-text text-lg group-hover:text-primary transition-colors truncate">
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <h3 style={{
+                                        fontSize: '16px',
+                                        fontWeight: 600,
+                                        color: 'var(--text-primary)',
+                                        marginBottom: '4px',
+                                        whiteSpace: 'nowrap',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis'
+                                    }}>
                                         {item.groups.name}
                                     </h3>
-                                    <p className="text-sm text-muted">
+                                    <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
                                         {item.role === 'admin' ? '👑 Admin' : 'Member'}
                                     </p>
                                 </div>
                             </div>
-                            <div className="flex items-center justify-between pt-3 border-t border-border">
-                                <span className="text-sm text-muted">View details</span>
-                                <svg className="w-5 h-5 text-muted group-hover:text-primary group-hover:translate-x-1 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                paddingTop: '12px',
+                                borderTop: '1px solid var(--border-color)'
+                            }}>
+                                <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>View details</span>
+                                <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--text-muted)' }}>
+                                    <path d="M9 5l7 7-7 7" />
                                 </svg>
                             </div>
                         </Link>
@@ -150,71 +165,85 @@ const Groups = () => {
             {/* Create Group Modal */}
             {showCreateModal && (
                 <>
-                    {/* Backdrop */}
-                    <div
-                        className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm animate-fadeIn"
-                        onClick={() => setShowCreateModal(false)}
-                    />
-
-                    {/* Modal */}
-                    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 pointer-events-none">
-                        <div className="card w-full max-w-lg pointer-events-auto animate-slideUp">
-                            {/* Modal Header */}
-                            <div className="flex items-center justify-between mb-6 pb-4 border-b border-border">
+                    <div className="modal-backdrop" onClick={() => setShowCreateModal(false)} />
+                    <div className="modal-container">
+                        <div className="card modal-content">
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
                                 <div>
-                                    <h2 className="text-2xl font-bold text-text">Create New Group</h2>
-                                    <p className="text-sm text-muted mt-1">Start organizing tournaments with friends</p>
+                                    <h2 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>
+                                        Create New Group
+                                    </h2>
+                                    <p style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
+                                        Start organizing tournaments with friends
+                                    </p>
                                 </div>
                                 <button
                                     onClick={() => setShowCreateModal(false)}
-                                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                                    style={{
+                                        padding: '8px',
+                                        borderRadius: '8px',
+                                        border: 'none',
+                                        background: 'transparent',
+                                        cursor: 'pointer',
+                                        color: 'var(--text-muted)'
+                                    }}
                                 >
-                                    <X size={24} className="text-muted" />
+                                    <X size={22} />
                                 </button>
                             </div>
 
-                            {/* Modal Body */}
-                            <form onSubmit={handleCreateGroup} className="space-y-6">
-                                <div>
-                                    <label className="block text-sm font-semibold text-text mb-3">
+                            <form onSubmit={handleCreateGroup}>
+                                <div style={{ marginBottom: '20px' }}>
+                                    <label style={{
+                                        display: 'block',
+                                        fontSize: '14px',
+                                        fontWeight: 600,
+                                        marginBottom: '8px',
+                                        color: 'var(--text-primary)'
+                                    }}>
                                         Group Name
                                     </label>
                                     <input
                                         autoFocus
                                         type="text"
                                         placeholder="e.g., Weekend Warriors"
-                                        className="input-field text-base"
+                                        className="input-field"
                                         value={newGroupName}
                                         onChange={(e) => setNewGroupName(e.target.value)}
                                         maxLength={50}
                                     />
-                                    <p className="text-xs text-muted mt-2">
+                                    <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px' }}>
                                         Choose a memorable name for your badminton group
                                     </p>
                                 </div>
 
-                                {/* Modal Footer */}
-                                <div className="flex gap-3 justify-end pt-4 border-t border-border">
+                                <div style={{
+                                    display: 'flex',
+                                    gap: '12px',
+                                    justifyContent: 'flex-end',
+                                    paddingTop: '20px',
+                                    borderTop: '1px solid var(--border-color)'
+                                }}>
                                     <button
                                         type="button"
                                         onClick={() => setShowCreateModal(false)}
-                                        className="btn-secondary px-6"
+                                        className="btn-secondary"
                                     >
                                         Cancel
                                     </button>
                                     <button
                                         type="submit"
                                         disabled={creating || !newGroupName.trim()}
-                                        className="btn-primary px-8 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                        className="btn-primary"
                                     >
                                         {creating ? (
                                             <>
-                                                <Loader2 className="animate-spin" size={18} />
+                                                <Loader2 className="animate-spin" size={16} />
                                                 Creating...
                                             </>
                                         ) : (
                                             <>
-                                                <Plus size={18} />
+                                                <Plus size={16} />
                                                 Create Group
                                             </>
                                         )}
@@ -225,29 +254,6 @@ const Groups = () => {
                     </div>
                 </>
             )}
-
-            <style jsx>{`
-                @keyframes fadeIn {
-                    from { opacity: 0; }
-                    to { opacity: 1; }
-                }
-                @keyframes slideUp {
-                    from {
-                        opacity: 0;
-                        transform: translateY(20px);
-                    }
-                    to {
-                        opacity: 1;
-                        transform: translateY(0);
-                    }
-                }
-                .animate-fadeIn {
-                    animation: fadeIn 0.2s ease-out;
-                }
-                .animate-slideUp {
-                    animation: slideUp 0.3s ease-out;
-                }
-            `}</style>
         </div>
     );
 };

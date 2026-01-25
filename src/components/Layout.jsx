@@ -24,37 +24,74 @@ const Layout = ({ children }) => {
     return (
         <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-primary)' }}>
             {/* Header */}
-            <header className="sticky top-0 z-40" style={{ backgroundColor: 'var(--bg-surface)', borderBottom: '1px solid var(--border-color)' }}>
-                <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-                    <Link to="/" className="flex items-center gap-3">
-                        <div className="p-2 rounded-xl" style={{ background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-dark))' }}>
-                            <Trophy className="text-white" size={24} />
+            <header style={{
+                backgroundColor: 'var(--bg-surface)',
+                borderBottom: '1px solid var(--border-color)',
+                position: 'sticky',
+                top: 0,
+                zIndex: 40
+            }}>
+                <div style={{
+                    maxWidth: '1024px',
+                    margin: '0 auto',
+                    padding: '12px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                }}>
+                    <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '12px', textDecoration: 'none' }}>
+                        <div style={{
+                            padding: '10px',
+                            borderRadius: '12px',
+                            background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-dark))'
+                        }}>
+                            <Trophy className="text-white" size={22} />
                         </div>
-                        <h1 className="text-xl font-bold" style={{ color: 'var(--accent-primary)' }}>Goodminton</h1>
+                        <span style={{
+                            fontSize: '20px',
+                            fontWeight: 700,
+                            color: 'var(--accent-primary)'
+                        }}>
+                            Goodminton
+                        </span>
                     </Link>
 
-                    <div className="flex items-center gap-2">
-                        {/* Theme Toggle */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <button
                             onClick={toggleTheme}
-                            className="p-2 rounded-lg transition-colors"
-                            style={{ color: 'var(--text-muted)' }}
+                            style={{
+                                padding: '10px',
+                                borderRadius: '10px',
+                                border: 'none',
+                                background: 'transparent',
+                                cursor: 'pointer',
+                                color: 'var(--text-muted)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                            }}
                             title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
                         >
                             {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
                         </button>
 
-                        {/* User Avatar */}
-                        <div className="h-9 w-9 rounded-full flex items-center justify-center text-sm font-semibold text-white"
-                            style={{ background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-dark))' }}>
+                        <div className="avatar avatar-sm">
                             {user?.email?.charAt(0).toUpperCase() || 'U'}
                         </div>
 
-                        {/* Logout */}
                         <button
                             onClick={handleLogout}
-                            className="p-2 rounded-lg transition-colors hover:opacity-70"
-                            style={{ color: 'var(--text-muted)' }}
+                            style={{
+                                padding: '10px',
+                                borderRadius: '10px',
+                                border: 'none',
+                                background: 'transparent',
+                                cursor: 'pointer',
+                                color: 'var(--text-muted)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                            }}
                             title="Logout"
                         >
                             <LogOut size={20} />
@@ -64,13 +101,26 @@ const Layout = ({ children }) => {
             </header>
 
             {/* Main Content */}
-            <main className="max-w-7xl mx-auto px-4 py-6 pb-24">
+            <main style={{
+                maxWidth: '1024px',
+                margin: '0 auto',
+                padding: '24px 20px 120px 20px'
+            }}>
                 {children}
             </main>
 
             {/* Bottom Navigation - Mobile */}
-            <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50" style={{ backgroundColor: 'var(--bg-surface)', borderTop: '1px solid var(--border-color)' }}>
-                <div className="flex justify-around items-center px-4 py-2">
+            <nav className="md:hidden" style={{
+                position: 'fixed',
+                bottom: 0,
+                left: 0,
+                right: 0,
+                zIndex: 50,
+                backgroundColor: 'var(--bg-surface)',
+                borderTop: '1px solid var(--border-color)',
+                padding: '8px 16px 12px 16px'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center' }}>
                     {navItems.map((item) => {
                         const isActive = location.pathname === item.path ||
                             (item.path === '/groups' && location.pathname.startsWith('/groups'));
@@ -80,17 +130,21 @@ const Layout = ({ children }) => {
                             <Link
                                 key={item.path}
                                 to={item.path}
-                                className={clsx(
-                                    "flex flex-col items-center gap-1 py-2 px-4 rounded-xl transition-all",
-                                    isActive && "bg-opacity-10"
-                                )}
                                 style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    padding: '8px 20px',
+                                    borderRadius: '12px',
+                                    textDecoration: 'none',
                                     color: isActive ? 'var(--accent-primary)' : 'var(--text-muted)',
-                                    backgroundColor: isActive ? 'rgba(65, 105, 225, 0.1)' : 'transparent'
+                                    backgroundColor: isActive ? 'rgba(79, 70, 229, 0.1)' : 'transparent',
+                                    transition: 'all 0.2s'
                                 }}
                             >
                                 <Icon size={22} strokeWidth={isActive ? 2.5 : 2} />
-                                <span className="text-xs font-medium">{item.label}</span>
+                                <span style={{ fontSize: '11px', fontWeight: 600 }}>{item.label}</span>
                             </Link>
                         );
                     })}
