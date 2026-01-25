@@ -7,15 +7,23 @@ export default {
   theme: {
     extend: {
       colors: {
-        background: '#0f172a', // Slate 900
-        surface: '#1e293b', // Slate 800
-        primary: '#3b82f6', // Blue 500
-        accent: '#8b5cf6', // Violet 500
-        text: '#f8fafc', // Slate 50
-        muted: '#94a3b8', // Slate 400
+        background: '#F5F7FA', // Light gray-blue
+        surface: '#FFFFFF', // Pure white
+        primary: '#4169E1', // Royal blue
+        'primary-dark': '#3451B2',
+        accent: '#4169E1',
+        text: '#1E293B', // Dark slate
+        muted: '#64748B', // Slate gray
+        border: '#E2E8F0', // Light border
+        success: '#10B981',
+        'success-light': '#D1FAE5',
       },
       fontFamily: {
-        sans: ['Inter', 'sans-serif'],
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+      },
+      boxShadow: {
+        'card': '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+        'card-hover': '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
       },
     },
   },

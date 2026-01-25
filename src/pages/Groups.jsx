@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
-import { Plus, Users, Loader2, Crown, ChevronRight } from 'lucide-react';
+import { Plus, Users, Loader2, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
 
 const Groups = () => {
     const { user } = useAuth();
@@ -74,163 +73,181 @@ const Groups = () => {
     };
 
     return (
-        <div className="space-y-6 pb-20">
-            <motion.header
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex justify-between items-center"
-            >
+        <div className="max-w-5xl mx-auto">
+            {/* Header Section */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
                 <div>
-                    <h1 className="text-3xl font-bold text-white">My Groups</h1>
-                    <p className="text-sm text-muted mt-1">Manage your badminton circles</p>
+                    <h1 className="text-3xl sm:text-4xl font-bold text-text mb-2">My Groups</h1>
+                    <p className="text-muted text-base">Manage your badminton circles</p>
                 </div>
-                <motion.button
-                    whileHover={{ scale: 1.1, rotate: 90 }}
-                    whileTap={{ scale: 0.9 }}
+                <button
                     onClick={() => setShowCreateModal(true)}
-                    className="p-3 bg-gradient-to-r from-primary to-blue-600 rounded-full hover:shadow-lg hover:shadow-primary/30 transition-all"
+                    className="btn-primary flex items-center justify-center gap-2 whitespace-nowrap self-start sm:self-auto"
                 >
-                    <Plus className="text-white" size={24} />
-                </motion.button>
-            </motion.header>
+                    <Plus size={20} strokeWidth={2.5} />
+                    <span className="font-semibold">New Group</span>
+                </button>
+            </div>
 
+            {/* Content */}
             {loading ? (
-                <div className="flex justify-center py-12">
-                    <Loader2 className="animate-spin text-primary" size={32} />
+                <div className="flex justify-center py-20">
+                    <Loader2 className="animate-spin text-primary" size={40} />
                 </div>
             ) : groups.length === 0 ? (
-                <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="glass-card flex flex-col items-center py-16 text-center space-y-4"
-                >
-                    <motion.div
-                        animate={{
-                            y: [0, -10, 0],
-                        }}
-                        transition={{
-                            duration: 2,
-                            repeat: Infinity,
-                            ease: "easeInOut"
-                        }}
-                        className="bg-gradient-to-br from-surface to-background p-6 rounded-full border border-white/10"
-                    >
-                        <Users size={48} className="text-muted" />
-                    </motion.div>
-                    <div>
-                        <h3 className="text-xl font-semibold text-white">No groups yet</h3>
-                        <p className="text-sm text-muted max-w-[250px] mx-auto mt-2">
-                            Create a group to start organizing epic tournaments with your friends.
-                        </p>
+                <div className="card text-center py-20 px-6">
+                    <div className="bg-primary/10 p-8 rounded-3xl inline-flex mb-6">
+                        <Users size={56} className="text-primary" strokeWidth={1.5} />
                     </div>
-                    <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
+                    <h3 className="text-2xl font-bold text-text mb-3">No groups yet</h3>
+                    <p className="text-muted text-lg max-w-md mx-auto mb-8">
+                        Create a group to start organizing tournaments with your friends.
+                    </p>
+                    <button
                         onClick={() => setShowCreateModal(true)}
-                        className="px-6 py-3 bg-gradient-to-r from-primary to-blue-600 rounded-lg text-sm font-medium text-white shadow-lg shadow-primary/20 mt-4"
+                        className="btn-primary inline-flex items-center gap-2"
                     >
+                        <Plus size={20} />
                         Create your first group
-                    </motion.button>
-                </motion.div>
+                    </button>
+                </div>
             ) : (
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="grid gap-4"
-                >
-                    {groups.map((item, index) => (
-                        <motion.div
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {groups.map((item) => (
+                        <Link
                             key={item.groups.id}
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: index * 0.1 }}
+                            to={`/groups/${item.groups.id}`}
+                            className="card card-hover group cursor-pointer transition-all duration-200"
                         >
-                            <Link
-                                to={`/groups/${item.groups.id}`}
-                                className="glass-card hover:bg-white/5 transition-all flex items-center gap-4 group relative overflow-hidden"
-                            >
-                                <motion.div
-                                    whileHover={{ scale: 1.1, rotate: 5 }}
-                                    className="h-14 w-14 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center border border-white/10 text-xl font-bold text-white relative"
-                                >
+                            <div className="flex items-center gap-4 mb-4">
+                                <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center text-2xl font-bold text-white shadow-lg flex-shrink-0">
                                     {item.groups.image_url ? (
-                                        <img src={item.groups.image_url} alt="" className="h-full w-full object-cover rounded-xl" />
+                                        <img src={item.groups.image_url} alt="" className="h-full w-full object-cover rounded-2xl" />
                                     ) : (
                                         item.groups.name.charAt(0).toUpperCase()
                                     )}
-                                </motion.div>
-                                <div className="flex-1">
-                                    <h3 className="font-semibold text-white group-hover:text-primary transition-colors flex items-center gap-2">
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <h3 className="font-semibold text-text text-lg group-hover:text-primary transition-colors truncate">
                                         {item.groups.name}
-                                        {item.role === 'admin' && (
-                                            <Crown size={16} className="text-accent" />
-                                        )}
                                     </h3>
-                                    <p className="text-xs text-muted">
-                                        {item.role === 'admin' ? 'Group Admin' : 'Member'}
+                                    <p className="text-sm text-muted">
+                                        {item.role === 'admin' ? '👑 Admin' : 'Member'}
                                     </p>
                                 </div>
-                                <ChevronRight className="text-muted group-hover:text-primary group-hover:translate-x-1 transition-all" size={20} />
-                            </Link>
-                        </motion.div>
+                            </div>
+                            <div className="flex items-center justify-between pt-3 border-t border-border">
+                                <span className="text-sm text-muted">View details</span>
+                                <svg className="w-5 h-5 text-muted group-hover:text-primary group-hover:translate-x-1 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                            </div>
+                        </Link>
                     ))}
-                </motion.div>
+                </div>
             )}
 
-            {/* Create Modal */}
-            <AnimatePresence>
-                {showCreateModal && (
-                    <>
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
-                            onClick={() => setShowCreateModal(false)}
-                        />
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                            className="fixed inset-0 z-50 flex items-center justify-center px-4 pointer-events-none"
-                        >
-                            <div className="glass-card w-full max-w-sm space-y-4 bg-[#1e293b] pointer-events-auto">
-                                <h2 className="text-2xl font-bold text-white">Create New Group</h2>
-                                <form onSubmit={handleCreateGroup} className="space-y-4">
+            {/* Create Group Modal */}
+            {showCreateModal && (
+                <>
+                    {/* Backdrop */}
+                    <div
+                        className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm animate-fadeIn"
+                        onClick={() => setShowCreateModal(false)}
+                    />
+
+                    {/* Modal */}
+                    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 pointer-events-none">
+                        <div className="card w-full max-w-lg pointer-events-auto animate-slideUp">
+                            {/* Modal Header */}
+                            <div className="flex items-center justify-between mb-6 pb-4 border-b border-border">
+                                <div>
+                                    <h2 className="text-2xl font-bold text-text">Create New Group</h2>
+                                    <p className="text-sm text-muted mt-1">Start organizing tournaments with friends</p>
+                                </div>
+                                <button
+                                    onClick={() => setShowCreateModal(false)}
+                                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                                >
+                                    <X size={24} className="text-muted" />
+                                </button>
+                            </div>
+
+                            {/* Modal Body */}
+                            <form onSubmit={handleCreateGroup} className="space-y-6">
+                                <div>
+                                    <label className="block text-sm font-semibold text-text mb-3">
+                                        Group Name
+                                    </label>
                                     <input
                                         autoFocus
                                         type="text"
-                                        placeholder="Group Name (e.g. Weekend Warriors)"
-                                        className="w-full p-3 bg-background border border-white/10 rounded-lg text-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+                                        placeholder="e.g., Weekend Warriors"
+                                        className="input-field text-base"
                                         value={newGroupName}
                                         onChange={(e) => setNewGroupName(e.target.value)}
+                                        maxLength={50}
                                     />
-                                    <div className="flex gap-3 justify-end pt-2">
-                                        <motion.button
-                                            whileHover={{ scale: 1.05 }}
-                                            whileTap={{ scale: 0.95 }}
-                                            type="button"
-                                            onClick={() => setShowCreateModal(false)}
-                                            className="px-4 py-2 text-sm font-medium text-muted hover:text-white transition-colors"
-                                        >
-                                            Cancel
-                                        </motion.button>
-                                        <motion.button
-                                            whileHover={{ scale: 1.05 }}
-                                            whileTap={{ scale: 0.95 }}
-                                            type="submit"
-                                            disabled={creating || !newGroupName.trim()}
-                                            className="px-6 py-2 bg-gradient-to-r from-primary to-blue-600 rounded-lg text-sm font-medium text-white shadow-lg shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                                        >
-                                            {creating ? 'Creating...' : 'Create Group'}
-                                        </motion.button>
-                                    </div>
-                                </form>
-                            </div>
-                        </motion.div>
-                    </>
-                )}
-            </AnimatePresence>
+                                    <p className="text-xs text-muted mt-2">
+                                        Choose a memorable name for your badminton group
+                                    </p>
+                                </div>
+
+                                {/* Modal Footer */}
+                                <div className="flex gap-3 justify-end pt-4 border-t border-border">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowCreateModal(false)}
+                                        className="btn-secondary px-6"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={creating || !newGroupName.trim()}
+                                        className="btn-primary px-8 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                    >
+                                        {creating ? (
+                                            <>
+                                                <Loader2 className="animate-spin" size={18} />
+                                                Creating...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Plus size={18} />
+                                                Create Group
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </>
+            )}
+
+            <style jsx>{`
+                @keyframes fadeIn {
+                    from { opacity: 0; }
+                    to { opacity: 1; }
+                }
+                @keyframes slideUp {
+                    from {
+                        opacity: 0;
+                        transform: translateY(20px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateY(0);
+                    }
+                }
+                .animate-fadeIn {
+                    animation: fadeIn 0.2s ease-out;
+                }
+                .animate-slideUp {
+                    animation: slideUp 0.3s ease-out;
+                }
+            `}</style>
         </div>
     );
 };

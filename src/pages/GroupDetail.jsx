@@ -2,8 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
-import { ArrowLeft, UserPlus, Trophy, Users, Crown, Loader2, Plus } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { ArrowLeft, UserPlus, Trophy, Copy, Check, Plus } from 'lucide-react';
 
 const GroupDetail = () => {
     const { groupId } = useParams();
@@ -13,9 +12,13 @@ const GroupDetail = () => {
     const [members, setMembers] = useState([]);
     const [tournaments, setTournaments] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [showAddMember, setShowAddMember] = useState(false);
+    const [showInviteModal, setShowInviteModal] = useState(false);
     const [newMemberEmail, setNewMemberEmail] = useState('');
     const [adding, setAdding] = useState(false);
+    const [copied, setCopied] = useState(false);
+
+    // Generate simple join code from group ID
+    const joinCode = groupId ? groupId.substring(0, 6).toUpperCase() : '';
 
     useEffect(() => {
         fetchGroupData();
@@ -23,7 +26,6 @@ const GroupDetail = () => {
 
     const fetchGroupData = async () => {
         try {
-            // Fetch group details
             const { data: groupData, error: groupError } = await supabase
                 .from('groups')
                 .select('*')
@@ -33,7 +35,6 @@ const GroupDetail = () => {
             if (groupError) throw groupError;
             setGroup(groupData);
 
-            // Fetch members
             const { data: membersData, error: membersError } = await supabase
                 .from('group_members')
                 .select(`
@@ -50,7 +51,6 @@ const GroupDetail = () => {
             if (membersError) throw membersError;
             setMembers(membersData || []);
 
-            // Fetch tournaments
             const { data: tournamentsData, error: tournamentsError } = await supabase
                 .from('tournaments')
                 .select('*')
@@ -66,13 +66,18 @@ const GroupDetail = () => {
         }
     };
 
+    const handleCopyCode = () => {
+        navigator.clipboard.writeText(joinCode);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
     const handleAddMember = async (e) => {
         e.preventDefault();
         if (!newMemberEmail.trim()) return;
         setAdding(true);
 
         try {
-            // Find player by email
             const { data: playerData, error: playerError } = await supabase
                 .from('players')
                 .select('id')
@@ -85,7 +90,6 @@ const GroupDetail = () => {
                 return;
             }
 
-            // Add to group
             const { error: memberError } = await supabase
                 .from('group_members')
                 .insert([{ group_id: groupId, player_id: playerData.id, role: 'member' }]);
@@ -93,7 +97,7 @@ const GroupDetail = () => {
             if (memberError) throw memberError;
 
             setNewMemberEmail('');
-            setShowAddMember(false);
+            setShowInviteModal(false);
             fetchGroupData();
         } catch (err) {
             console.error('Error adding member:', err);
@@ -106,11 +110,7 @@ const GroupDetail = () => {
     const isAdmin = group && group.owner_id === user?.id;
 
     if (loading) {
-        return (
-            <div className="flex justify-center items-center min-h-screen">
-                <Loader2 className="animate-spin text-primary" size={32} />
-            </div>
-        );
+        return <div className="text-center py-12">Loading...</div>;
     }
 
     if (!group) {
@@ -118,173 +118,144 @@ const GroupDetail = () => {
     }
 
     return (
-        <div className="space-y-6 pb-20">
-            <motion.header
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex items-center gap-4"
+        <div className="max-w-4xl mx-auto">
+            <button
+                onClick={() => navigate('/groups')}
+                className="flex items-center gap-2 text-primary hover:text-primary-dark mb-6 font-medium"
             >
-                <button
-                    onClick={() => navigate('/groups')}
-                    className="p-2 hover:bg-white/5 rounded-lg transition-colors"
-                >
-                    <ArrowLeft className="text-muted" size={24} />
-                </button>
-                <div className="flex-1">
-                    <h1 className="text-3xl font-bold text-white">{group.name}</h1>
-                    <p className="text-sm text-muted mt-1">{members.length} members</p>
-                </div>
-            </motion.header>
+                <ArrowLeft size={20} />
+                Back to Groups
+            </button>
 
-            {/* Members Section */}
-            <div className="glass-card space-y-4">
-                <div className="flex justify-between items-center">
-                    <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-                        <Users size={20} />
-                        Members
-                    </h2>
+            {/* Group Header */}
+            <div className="card mb-6">
+                <div className="flex items-center gap-4">
+                    <div className="h-20 w-20 rounded-2xl bg-primary/10 flex items-center justify-center text-3xl font-bold text-primary">
+                        {group.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1">
+                        <h1 className="text-3xl font-bold text-text">{group.name}</h1>
+                        <p className="text-muted">{members.length} members • Code: {joinCode}</p>
+                    </div>
                     {isAdmin && (
-                        <motion.button
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => setShowAddMember(true)}
-                            className="p-2 bg-primary/20 rounded-lg hover:bg-primary/30 transition-colors"
+                        <button
+                            onClick={() => setShowInviteModal(true)}
+                            className="btn-primary flex items-center gap-2"
                         >
-                            <UserPlus size={20} className="text-primary" />
-                        </motion.button>
+                            <UserPlus size={20} />
+                            Invite
+                        </button>
                     )}
-                </div>
-
-                <div className="space-y-2">
-                    {members.map((member, index) => (
-                        <motion.div
-                            key={member.players.id}
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: index * 0.05 }}
-                            className="flex items-center gap-3 p-3 bg-surface/50 rounded-lg"
-                        >
-                            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center text-sm font-bold text-white">
-                                {member.players.avatar_url ? (
-                                    <img src={member.players.avatar_url} alt="" className="h-full w-full rounded-full object-cover" />
-                                ) : (
-                                    member.players.full_name?.charAt(0).toUpperCase() || 'P'
-                                )}
-                            </div>
-                            <div className="flex-1">
-                                <p className="text-white font-medium">{member.players.full_name || 'Player'}</p>
-                                <p className="text-xs text-muted">{member.players.email}</p>
-                            </div>
-                            {member.role === 'admin' && (
-                                <Crown size={16} className="text-accent" />
-                            )}
-                        </motion.div>
-                    ))}
                 </div>
             </div>
 
             {/* Tournaments Section */}
-            <div className="glass-card space-y-4">
-                <div className="flex justify-between items-center">
-                    <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-                        <Trophy size={20} />
-                        Tournaments
-                    </h2>
+            <div className="mb-6">
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-2xl font-bold text-text">Tournaments</h2>
                     {isAdmin && (
-                        <motion.button
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
+                        <button
                             onClick={() => navigate(`/groups/${groupId}/create-tournament`)}
-                            className="px-4 py-2 bg-gradient-to-r from-primary to-blue-600 rounded-lg text-sm font-medium text-white shadow-lg shadow-primary/20"
+                            className="btn-primary flex items-center gap-2"
                         >
-                            <Plus size={16} className="inline mr-1" />
+                            <Plus size={20} />
                             New Tournament
-                        </motion.button>
+                        </button>
                     )}
                 </div>
 
                 {tournaments.length === 0 ? (
-                    <div className="text-center py-8 text-muted">
-                        No tournaments yet. Create one to get started!
+                    <div className="card text-center py-12">
+                        <Trophy className="mx-auto text-muted mb-3" size={48} />
+                        <p className="text-muted">No tournaments yet. Create one to get started!</p>
                     </div>
                 ) : (
-                    <div className="space-y-2">
-                        {tournaments.map((tournament, index) => (
-                            <motion.div
+                    <div className="space-y-4">
+                        {tournaments.map((tournament) => (
+                            <div
                                 key={tournament.id}
-                                initial={{ opacity: 0, x: -20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ delay: index * 0.05 }}
                                 onClick={() => navigate(`/tournaments/${tournament.id}`)}
-                                className="p-4 bg-surface/50 rounded-lg hover:bg-white/5 transition-colors cursor-pointer"
+                                className="card card-hover cursor-pointer"
                             >
-                                <h3 className="font-semibold text-white">{tournament.name}</h3>
-                                <p className="text-xs text-muted mt-1">
-                                    Status: <span className="capitalize">{tournament.status}</span>
-                                </p>
-                            </motion.div>
+                                <div className="flex items-start justify-between mb-3">
+                                    <div className="flex-1">
+                                        <h3 className="text-lg font-semibold text-text mb-1">{tournament.name}</h3>
+                                        <p className="text-sm text-muted">Scoring: {tournament.scoring_type?.replace('_', ' ')}</p>
+                                    </div>
+                                    <Trophy className="text-primary" size={24} />
+                                </div>
+                                <div className="flex items-center justify-between text-sm">
+                                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${tournament.status === 'active' ? 'bg-success-light text-success' : 'bg-gray-100 text-gray-600'
+                                        }`}>
+                                        {tournament.status === 'active' ? 'Active' : tournament.status}
+                                    </span>
+                                </div>
+                            </div>
                         ))}
                     </div>
                 )}
             </div>
 
-            {/* Add Member Modal */}
-            <AnimatePresence>
-                {showAddMember && (
-                    <>
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
-                            onClick={() => setShowAddMember(false)}
-                        />
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                            className="fixed inset-0 z-50 flex items-center justify-center px-4 pointer-events-none"
-                        >
-                            <div className="glass-card w-full max-w-sm space-y-4 bg-[#1e293b] pointer-events-auto">
-                                <h2 className="text-2xl font-bold text-white">Add Member</h2>
+            {/* Invite Modal */}
+            {showInviteModal && (
+                <>
+                    <div
+                        className="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm"
+                        onClick={() => setShowInviteModal(false)}
+                    />
+                    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 pointer-events-none">
+                        <div className="card w-full max-w-md pointer-events-auto">
+                            <div className="flex justify-between items-center mb-6">
+                                <h2 className="text-2xl font-bold text-text">Invite Members</h2>
+                                <button
+                                    onClick={() => setShowInviteModal(false)}
+                                    className="text-muted hover:text-text"
+                                >
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <div className="mb-6">
+                                <p className="text-sm text-muted mb-3">Share this join code with your friends:</p>
+                                <div className="flex items-center gap-3 bg-primary/5 p-4 rounded-xl border border-primary/20">
+                                    <span className="text-2xl font-bold text-primary flex-1">{joinCode}</span>
+                                    <button
+                                        onClick={handleCopyCode}
+                                        className="p-2 hover:bg-primary/10 rounded-lg transition-colors"
+                                    >
+                                        {copied ? <Check className="text-success" size={20} /> : <Copy className="text-primary" size={20} />}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="border-t border-border pt-6">
+                                <p className="text-sm font-medium text-text mb-3">Or invite by email</p>
                                 <form onSubmit={handleAddMember} className="space-y-4">
                                     <input
-                                        autoFocus
                                         type="email"
-                                        placeholder="Member's email address"
-                                        className="w-full p-3 bg-background border border-white/10 rounded-lg text-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+                                        placeholder="friend@example.com"
+                                        className="input-field"
                                         value={newMemberEmail}
                                         onChange={(e) => setNewMemberEmail(e.target.value)}
                                     />
                                     <p className="text-xs text-muted">
-                                        The user must have an account to be added to the group.
+                                        The user must have an account to be added.
                                     </p>
-                                    <div className="flex gap-3 justify-end pt-2">
-                                        <motion.button
-                                            whileHover={{ scale: 1.05 }}
-                                            whileTap={{ scale: 0.95 }}
-                                            type="button"
-                                            onClick={() => setShowAddMember(false)}
-                                            className="px-4 py-2 text-sm font-medium text-muted hover:text-white transition-colors"
-                                        >
-                                            Cancel
-                                        </motion.button>
-                                        <motion.button
-                                            whileHover={{ scale: 1.05 }}
-                                            whileTap={{ scale: 0.95 }}
-                                            type="submit"
-                                            disabled={adding || !newMemberEmail.trim()}
-                                            className="px-6 py-2 bg-gradient-to-r from-primary to-blue-600 rounded-lg text-sm font-medium text-white shadow-lg shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                                        >
-                                            {adding ? 'Adding...' : 'Add Member'}
-                                        </motion.button>
-                                    </div>
+                                    <button
+                                        type="submit"
+                                        disabled={adding || !newMemberEmail.trim()}
+                                        className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {adding ? 'Sending...' : 'Send Invite'}
+                                    </button>
                                 </form>
                             </div>
-                        </motion.div>
-                    </>
-                )}
-            </AnimatePresence>
+                        </div>
+                    </div>
+                </>
+            )}
         </div>
     );
 };
