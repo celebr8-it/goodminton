@@ -13,14 +13,35 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
+  /* ========== THEME COLOR - CHANGE THIS TO CUSTOMIZE ========== */
+  /* Main brand color - Change this hex value to switch theme */
+  --theme-hue: 248;        /* Purple: 248, Blue: 215, Green: 142, Orange: 25, Pink: 330 */
+  --theme-saturation: 90%; /* Color intensity (0-100%) */
+  
+  /* Auto-generated theme colors from HSL */
+  --theme-50: hsl(var(--theme-hue), calc(var(--theme-saturation) * 0.9), 97%);
+  --theme-100: hsl(var(--theme-hue), calc(var(--theme-saturation) * 0.95), 94%);
+  --theme-200: hsl(var(--theme-hue), calc(var(--theme-saturation) * 0.95), 87%);
+  --theme-300: hsl(var(--theme-hue), calc(var(--theme-saturation) * 0.9), 77%);
+  --theme-400: hsl(var(--theme-hue), calc(var(--theme-saturation) * 0.85), 67%);
+  --theme-500: hsl(var(--theme-hue), var(--theme-saturation), 58%);
+  --theme-600: hsl(var(--theme-hue), calc(var(--theme-saturation) * 0.85), 50%);
+  --theme-700: hsl(var(--theme-hue), calc(var(--theme-saturation) * 0.8), 42%);
+  --theme-800: hsl(var(--theme-hue), calc(var(--theme-saturation) * 0.75), 34%);
+  --theme-900: hsl(var(--theme-hue), calc(var(--theme-saturation) * 0.7), 28%);
+
   /* Light theme colors */
   --bg-primary: #F8FAFC;
   --bg-surface: #FFFFFF;
   --text-primary: #0F172A;
   --text-muted: #64748B;
   --border-color: #E2E8F0;
-  --accent-primary: #4F46E5;
-  --accent-dark: #4338CA;
+  
+  /* Theme-based accent colors */
+  --accent-primary: var(--theme-600);
+  --accent-hover: var(--theme-700);
+  --accent-light: var(--theme-100);
+  --accent-medium: var(--theme-500);
 }
 
 .dark {
@@ -29,8 +50,12 @@
   --text-primary: #F8FAFC;
   --text-muted: #94A3B8;
   --border-color: #334155;
-  --accent-primary: #6366F1;
-  --accent-dark: #4F46E5;
+  
+  /* Lighter theme colors for dark mode */
+  --accent-primary: var(--theme-500);
+  --accent-hover: var(--theme-400);
+  --accent-light: var(--theme-900);
+  --accent-medium: var(--theme-400);
 }
 
 * {
@@ -84,7 +109,7 @@ body {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  background: linear-gradient(135deg, var(--accent-primary), var(--accent-dark));
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-hover));
   color: white;
   font-weight: 600;
   font-size: 14px;
@@ -93,13 +118,13 @@ body {
   border: none;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.25);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent-primary) 25%, transparent);
   white-space: nowrap;
 }
 
 .btn-primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--accent-primary) 35%, transparent);
 }
 
 .btn-primary:active {
@@ -296,7 +321,7 @@ body {
   justify-content: center;
   font-weight: 700;
   color: white;
-  background: linear-gradient(135deg, var(--accent-primary), var(--accent-dark));
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-hover));
   border-radius: 50%;
   flex-shrink: 0;
 }

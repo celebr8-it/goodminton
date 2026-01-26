@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
+import { GroupService } from '../services/GroupService';
+import { TournamentService } from '../services/TournamentService';
 import { ArrowLeft, Trophy, Loader2 } from 'lucide-react';
 
 const CreateTournament = () => {
@@ -22,18 +23,11 @@ const CreateTournament = () => {
 
     const fetchGroupData = async () => {
         try {
-            const { data: groupData } = await supabase
-                .from('groups')
-                .select('*')
-                .eq('id', groupId)
-                .single();
+            const groupData = await GroupService.getGroupById(groupId);
             setGroup(groupData);
 
-            const { data: membersData } = await supabase
-                .from('group_members')
-                .select('players(id, full_name, email)')
-                .eq('group_id', groupId);
-            setMembers(membersData?.map(m => m.players) || []);
+            const membersData = await GroupService.getGroupMembers(groupId);
+            setMembers(membersData);
         } catch (err) {
             console.error('Error:', err);
         } finally {
@@ -47,18 +41,12 @@ const CreateTournament = () => {
         setCreating(true);
 
         try {
-            const { data: tournament, error } = await supabase
-                .from('tournaments')
-                .insert([{
-                    group_id: groupId,
-                    name: tournamentName,
-                    scoring_type: scoringType,
-                    status: 'draft'
-                }])
-                .select()
-                .single();
+            const tournament = await TournamentService.createTournament({
+                groupId,
+                name: tournamentName,
+                scoringType
+            });
 
-            if (error) throw error;
             navigate(`/tournaments/${tournament.id}`);
         } catch (err) {
             console.error('Error creating tournament:', err);
@@ -128,12 +116,13 @@ const CreateTournament = () => {
                             value={scoringType}
                             onChange={(e) => setScoringType(e.target.value)}
                         >
-                            <option value="standard_21">Standard (Best of 3, 21 points)</option>
+                            <option value="standard_21">Standard (Best of 3 to 21 points)</option>
+                            <option value="single_21">Single Set (21 points)</option>
                             <option value="single_30">Single Set (30 points)</option>
-                            <option value="quick_15">Quick Match (15 points)</option>
+                            <option value="custom">Custom Scoring</option>
                         </select>
                         <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px' }}>
-                            Standard badminton scoring is best of 3 sets, first to 21 points.
+                            Standard badminton scoring is best of 3 sets, first to 21 points with deuce at 20-20.
                         </p>
                     </div>
 

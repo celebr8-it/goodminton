@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
+import { TournamentService } from '../services/TournamentService';
+import { MatchService } from '../services/MatchService';
+import { GroupService } from '../services/GroupService';
 import { ArrowLeft, Trophy, Users, Play, Shuffle, Loader2, Plus, X, Trash2 } from 'lucide-react';
 
 const TournamentDetail = () => {
@@ -14,6 +16,7 @@ const TournamentDetail = () => {
     const [members, setMembers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [generating, setGenerating] = useState(false);
+    const [starting, setStarting] = useState(false);
     const [showAddTeamModal, setShowAddTeamModal] = useState(false);
     const [newTeamName, setNewTeamName] = useState('');
     const [selectedMembers, setSelectedMembers] = useState([]);
@@ -25,31 +28,22 @@ const TournamentDetail = () => {
 
     const fetchTournamentData = async () => {
         try {
-            const { data: tournamentData } = await supabase
-                .from('tournaments')
-                .select('*, groups(*)')
-                .eq('id', tournamentId)
-                .single();
+            // Fetch tournament details
+            const tournamentData = await TournamentService.getTournamentById(tournamentId);
             setTournament(tournamentData);
 
-            const { data: teamsData } = await supabase
-                .from('teams')
-                .select('*, team_members(player_id, players(id, full_name, email))')
-                .eq('tournament_id', tournamentId);
-            setTeams(teamsData || []);
+            // Fetch teams with members
+            const teamsData = await TournamentService.getTournamentTeams(tournamentId);
+            setTeams(teamsData);
 
-            const { data: matchesData } = await supabase
-                .from('matches')
-                .select('*, match_sets(*), team_a:teams!matches_team_a_id_fkey(*), team_b:teams!matches_team_b_id_fkey(*)')
-                .eq('tournament_id', tournamentId);
-            setMatches(matchesData || []);
+            // Fetch matches
+            const matchesData = await MatchService.getMatchesByTournament(tournamentId);
+            setMatches(matchesData);
 
+            // Fetch group members
             if (tournamentData?.group_id) {
-                const { data: membersData } = await supabase
-                    .from('group_members')
-                    .select('players(id, full_name, email)')
-                    .eq('group_id', tournamentData.group_id);
-                setMembers(membersData?.map(m => m.players) || []);
+                const membersData = await GroupService.getGroupMembers(tournamentData.group_id);
+                setMembers(membersData);
             }
         } catch (err) {
             console.error('Error:', err);
@@ -66,35 +60,7 @@ const TournamentDetail = () => {
         setGenerating(true);
 
         try {
-            await supabase.from('teams').delete().eq('tournament_id', tournamentId);
-
-            const shuffled = [...members].sort(() => Math.random() - 0.5);
-            const teamPairs = [];
-            for (let i = 0; i < shuffled.length; i += 2) {
-                if (i + 1 < shuffled.length) {
-                    teamPairs.push([shuffled[i], shuffled[i + 1]]);
-                }
-            }
-
-            for (let i = 0; i < teamPairs.length; i++) {
-                const pair = teamPairs[i];
-                const teamName = `Team ${String.fromCharCode(65 + i)}`;
-
-                const { data: team, error: teamError } = await supabase
-                    .from('teams')
-                    .insert([{ tournament_id: tournamentId, name: teamName }])
-                    .select()
-                    .single();
-
-                if (teamError) throw teamError;
-
-                for (const player of pair) {
-                    await supabase
-                        .from('team_members')
-                        .insert([{ team_id: team.id, player_id: player.id }]);
-                }
-            }
-
+            await TournamentService.generateRandomTeams(tournamentId, members);
             fetchTournamentData();
         } catch (err) {
             console.error('Error generating teams:', err);
@@ -110,18 +76,11 @@ const TournamentDetail = () => {
         setCreatingTeam(true);
 
         try {
-            const { data: team, error: teamError } = await supabase
-                .from('teams')
-                .insert([{ tournament_id: tournamentId, name: newTeamName }])
-                .select()
-                .single();
+            const team = await TournamentService.createTeam(tournamentId, newTeamName);
 
-            if (teamError) throw teamError;
-
+            // Add selected members to the team
             for (const playerId of selectedMembers) {
-                await supabase
-                    .from('team_members')
-                    .insert([{ team_id: team.id, player_id: playerId }]);
+                await TournamentService.addTeamMember(team.id, playerId);
             }
 
             setNewTeamName('');
@@ -149,38 +108,28 @@ const TournamentDetail = () => {
             alert('Need at least 2 teams to start!');
             return;
         }
+        setStarting(true);
 
         try {
-            for (let i = 0; i < teams.length; i++) {
-                for (let j = i + 1; j < teams.length; j++) {
-                    await supabase
-                        .from('matches')
-                        .insert([{
-                            tournament_id: tournamentId,
-                            team_a_id: teams[i].id,
-                            team_b_id: teams[j].id
-                        }]);
-                }
-            }
-
-            await supabase
-                .from('tournaments')
-                .update({ status: 'active' })
-                .eq('id', tournamentId);
-
+            const result = await TournamentService.startTournament(tournamentId);
+            console.log(`Tournament started: ${result.matchCount} matches created`);
             fetchTournamentData();
         } catch (err) {
             console.error('Error starting tournament:', err);
+            alert(err.message || 'Failed to start tournament. Please ensure you are the group owner and have the required permissions.');
+        } finally {
+            setStarting(false);
         }
     };
 
     const deleteTeam = async (teamId) => {
         if (!confirm('Delete this team?')) return;
         try {
-            await supabase.from('teams').delete().eq('id', teamId);
+            await TournamentService.deleteTeam(teamId);
             fetchTournamentData();
         } catch (err) {
             console.error('Error deleting team:', err);
+            alert('Failed to delete team');
         }
     };
 
@@ -204,7 +153,7 @@ const TournamentDetail = () => {
             {/* Back Button */}
             <button onClick={() => navigate(`/groups/${tournament.group_id}`)} className="back-button">
                 <ArrowLeft size={18} />
-                Back to {tournament.groups?.name}
+                Back to {tournament.group?.name}
             </button>
 
             {/* Tournament Header */}
@@ -291,10 +240,10 @@ const TournamentDetail = () => {
                                     {team.team_members?.map((tm) => (
                                         <div key={tm.player_id} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                             <div className="avatar avatar-sm">
-                                                {tm.players?.full_name?.charAt(0) || tm.players?.email?.charAt(0)}
+                                                {tm.player?.full_name?.charAt(0) || tm.player?.email?.charAt(0)}
                                             </div>
                                             <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
-                                                {tm.players?.full_name || tm.players?.email}
+                                                {tm.player?.full_name || tm.player?.email}
                                             </span>
                                         </div>
                                     ))}
@@ -305,9 +254,23 @@ const TournamentDetail = () => {
                 )}
 
                 {tournament.status === 'draft' && teams.length >= 2 && (
-                    <button onClick={startTournament} className="btn-primary" style={{ width: '100%', marginTop: '20px' }}>
-                        <Play size={18} />
-                        Start Tournament ({teams.length} teams, {teams.length * (teams.length - 1) / 2} matches)
+                    <button
+                        onClick={startTournament}
+                        disabled={starting}
+                        className="btn-primary"
+                        style={{ width: '100%', marginTop: '20px' }}
+                    >
+                        {starting ? (
+                            <>
+                                <Loader2 className="animate-spin" size={18} />
+                                Starting...
+                            </>
+                        ) : (
+                            <>
+                                <Play size={18} />
+                                Start Tournament ({teams.length} teams, {teams.length * (teams.length - 1) / 2} matches)
+                            </>
+                        )}
                     </button>
                 )}
             </div>

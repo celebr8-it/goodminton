@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/AuthContext';
-import { Plus, Users, Loader2, X } from 'lucide-react';
+import { Plus, Users, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import Modal, { ModalFooter } from '../components/Modal';
+import { GroupService } from '../services/GroupService';
 
 const Groups = () => {
     const { user } = useAuth();
@@ -19,20 +20,7 @@ const Groups = () => {
     const fetchGroups = async () => {
         if (!user) return;
         try {
-            const { data, error } = await supabase
-                .from('group_members')
-                .select(`
-                    role,
-                    groups (
-                        id,
-                        name,
-                        image_url,
-                        owner_id
-                    )
-                `)
-                .eq('player_id', user.id);
-
-            if (error) throw error;
+            const data = await GroupService.getUserGroups(user.id);
             setGroups(data || []);
         } catch (err) {
             console.error('Error fetching groups:', err);
@@ -47,20 +35,7 @@ const Groups = () => {
         setCreating(true);
 
         try {
-            const { data: groupData, error: groupError } = await supabase
-                .from('groups')
-                .insert([{ name: newGroupName, owner_id: user.id }])
-                .select()
-                .single();
-
-            if (groupError) throw groupError;
-
-            const { error: memberError } = await supabase
-                .from('group_members')
-                .insert([{ group_id: groupData.id, player_id: user.id, role: 'admin' }]);
-
-            if (memberError) throw memberError;
-
+            await GroupService.createGroup(user.id, newGroupName);
             setNewGroupName('');
             setShowCreateModal(false);
             fetchGroups();
@@ -163,97 +138,66 @@ const Groups = () => {
             )}
 
             {/* Create Group Modal */}
-            {showCreateModal && (
-                <>
-                    <div className="modal-backdrop" onClick={() => setShowCreateModal(false)} />
-                    <div className="modal-container">
-                        <div className="card modal-content">
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
-                                <div>
-                                    <h2 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>
-                                        Create New Group
-                                    </h2>
-                                    <p style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
-                                        Start organizing tournaments with friends
-                                    </p>
-                                </div>
-                                <button
-                                    onClick={() => setShowCreateModal(false)}
-                                    style={{
-                                        padding: '8px',
-                                        borderRadius: '8px',
-                                        border: 'none',
-                                        background: 'transparent',
-                                        cursor: 'pointer',
-                                        color: 'var(--text-muted)'
-                                    }}
-                                >
-                                    <X size={22} />
-                                </button>
-                            </div>
-
-                            <form onSubmit={handleCreateGroup}>
-                                <div style={{ marginBottom: '20px' }}>
-                                    <label style={{
-                                        display: 'block',
-                                        fontSize: '14px',
-                                        fontWeight: 600,
-                                        marginBottom: '8px',
-                                        color: 'var(--text-primary)'
-                                    }}>
-                                        Group Name
-                                    </label>
-                                    <input
-                                        autoFocus
-                                        type="text"
-                                        placeholder="e.g., Weekend Warriors"
-                                        className="input-field"
-                                        value={newGroupName}
-                                        onChange={(e) => setNewGroupName(e.target.value)}
-                                        maxLength={50}
-                                    />
-                                    <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px' }}>
-                                        Choose a memorable name for your badminton group
-                                    </p>
-                                </div>
-
-                                <div style={{
-                                    display: 'flex',
-                                    gap: '12px',
-                                    justifyContent: 'flex-end',
-                                    paddingTop: '20px',
-                                    borderTop: '1px solid var(--border-color)'
-                                }}>
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowCreateModal(false)}
-                                        className="btn-secondary"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        disabled={creating || !newGroupName.trim()}
-                                        className="btn-primary"
-                                    >
-                                        {creating ? (
-                                            <>
-                                                <Loader2 className="animate-spin" size={16} />
-                                                Creating...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Plus size={16} />
-                                                Create Group
-                                            </>
-                                        )}
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
+            <Modal
+                isOpen={showCreateModal}
+                onClose={() => setShowCreateModal(false)}
+                title="Create New Group"
+                description="Start organizing tournaments with friends"
+                size="md"
+            >
+                <form onSubmit={handleCreateGroup}>
+                    <div style={{ marginBottom: '20px' }}>
+                        <label style={{
+                            display: 'block',
+                            fontSize: '14px',
+                            fontWeight: 600,
+                            marginBottom: '8px',
+                            color: 'var(--text-primary)'
+                        }}>
+                            Group Name
+                        </label>
+                        <input
+                            autoFocus
+                            type="text"
+                            placeholder="e.g., Weekend Warriors"
+                            className="input-field"
+                            value={newGroupName}
+                            onChange={(e) => setNewGroupName(e.target.value)}
+                            maxLength={50}
+                        />
+                        <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px' }}>
+                            Choose a memorable name for your badminton group
+                        </p>
                     </div>
-                </>
-            )}
+
+                    <ModalFooter>
+                        <button
+                            type="button"
+                            onClick={() => setShowCreateModal(false)}
+                            className="btn-secondary"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={creating || !newGroupName.trim()}
+                            className="btn-primary"
+                        >
+                            {creating ? (
+                                <>
+                                    <Loader2 className="animate-spin" size={16} />
+                                    Creating...
+                                </>
+                            ) : (
+                                <>
+                                    <Plus size={16} />
+                                    Create Group
+                                </>
+                            )}
+                        </button>
+                    </ModalFooter>
+                </form>
+            </Modal>
         </div>
     );
 };

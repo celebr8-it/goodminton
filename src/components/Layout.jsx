@@ -43,7 +43,7 @@ const Layout = ({ children }) => {
                         <div style={{
                             padding: '10px',
                             borderRadius: '12px',
-                            background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-dark))'
+                            background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-hover))'
                         }}>
                             <Trophy className="text-white" size={22} />
                         </div>
