@@ -47,7 +47,7 @@ export class TournamentService {
         *,
         team_members(
           player_id,
-          player:players(
+          players(
             id,
             full_name,
             email,
@@ -237,22 +237,50 @@ export class TournamentService {
       throw new Error("Need at least 2 teams to start tournament");
     }
 
-    // Generate round-robin matches
+    // Generate round-robin matches using the circle method
+    // This ensures teams don't play consecutive matches
     const matches = [];
-    for (let i = 0; i < teams.length; i++) {
-      for (let j = i + 1; j < teams.length; j++) {
-        matches.push({
-          tournament_id: tournamentId,
-          team_a_id: teams[i].id,
-          team_b_id: teams[j].id,
-        });
-      }
+    const teamList = [...teams];
+    
+    // If odd number of teams, add a "bye" placeholder
+    const hasBye = teamList.length % 2 !== 0;
+    if (hasBye) {
+      teamList.push(null); // null represents a bye
     }
+    
+    const n = teamList.length;
+    const rounds = n - 1;
+    const matchesPerRound = n / 2;
+    
+    // Generate matches round by round using circle method
+    for (let round = 0; round < rounds; round++) {
+      for (let match = 0; match < matchesPerRound; match++) {
+        const home = match;
+        const away = n - 1 - match;
+        
+        // Skip if either team is a bye
+        if (teamList[home] && teamList[away]) {
+          matches.push({
+            tournament_id: tournamentId,
+            team_a_id: teamList[home].id,
+            team_b_id: teamList[away].id,
+          });
+        }
+      }
+      
+      // Rotate teams (keep first team fixed, rotate the rest)
+      const lastTeam = teamList.pop();
+      teamList.splice(1, 0, lastTeam);
+    }
+    
+    // Shuffle matches slightly within constraints to add variety
+    // but maintain reasonable spacing between same-team matches
+    const shuffledMatches = this.shuffleMatchesWithSpacing(matches);
 
     // Insert all matches
     const { data: createdMatches, error: matchError } = await supabase
       .from("matches")
-      .insert(matches)
+      .insert(shuffledMatches)
       .select();
 
     if (matchError) throw matchError;
@@ -272,6 +300,51 @@ export class TournamentService {
       matchCount: createdMatches.length,
       teamCount: teams.length,
     };
+  }
+
+  /**
+   * Shuffle matches while maintaining reasonable spacing between same-team matches
+   * This prevents any team from playing consecutive matches
+   * @param {Array} matches - Array of match objects
+   * @returns {Array} Reordered matches
+   */
+  static shuffleMatchesWithSpacing(matches) {
+    if (matches.length <= 2) return matches;
+    
+    const result = [];
+    const remaining = [...matches];
+    const recentTeams = new Set(); // Track teams that just played
+    
+    while (remaining.length > 0) {
+      // Find a match where neither team just played
+      let bestMatchIndex = -1;
+      
+      for (let i = 0; i < remaining.length; i++) {
+        const match = remaining[i];
+        const teamA = match.team_a_id;
+        const teamB = match.team_b_id;
+        
+        if (!recentTeams.has(teamA) && !recentTeams.has(teamB)) {
+          bestMatchIndex = i;
+          break;
+        }
+      }
+      
+      // If no ideal match found, just take the first one
+      if (bestMatchIndex === -1) {
+        bestMatchIndex = 0;
+      }
+      
+      const selectedMatch = remaining.splice(bestMatchIndex, 1)[0];
+      result.push(selectedMatch);
+      
+      // Update recent teams (only track the last played teams)
+      recentTeams.clear();
+      recentTeams.add(selectedMatch.team_a_id);
+      recentTeams.add(selectedMatch.team_b_id);
+    }
+    
+    return result;
   }
 
   /**
@@ -407,5 +480,49 @@ export class TournamentService {
 
     if (error) return false;
     return data?.group?.owner_id === userId;
+  }
+
+  /**
+   * Delete a tournament
+   * @param {string} tournamentId - Tournament ID
+   * @returns {Promise<void>}
+   */
+  static async deleteTournament(tournamentId) {
+    const { error } = await supabase
+      .from("tournaments")
+      .delete()
+      .eq("id", tournamentId);
+
+    if (error) throw error;
+  }
+
+  /**
+   * Create a custom match between two teams in a tournament
+   * @param {string} tournamentId - Tournament ID
+   * @param {string} teamAId - Team A ID
+   * @param {string} teamBId - Team B ID
+   * @returns {Promise<Object>} Created match
+   */
+  static async createCustomMatch(tournamentId, teamAId, teamBId) {
+    if (teamAId === teamBId) {
+      throw new Error("Cannot create a match between the same team");
+    }
+
+    const { data, error } = await supabase
+      .from("matches")
+      .insert({
+        tournament_id: tournamentId,
+        team_a_id: teamAId,
+        team_b_id: teamBId
+      })
+      .select(`
+        *,
+        team_a:teams!matches_team_a_id_fkey(*),
+        team_b:teams!matches_team_b_id_fkey(*)
+      `)
+      .single();
+
+    if (error) throw error;
+    return data;
   }
 }

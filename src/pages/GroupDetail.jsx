@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
-import { ArrowLeft, UserPlus, Trophy, Copy, Check, Plus, Users, Crown, Loader2 } from 'lucide-react';
-import Modal from '../components/Modal';
+import { ArrowLeft, UserPlus, Trophy, Copy, Check, Plus, Users, Crown, Loader2, Trash2, AlertTriangle } from 'lucide-react';
+import Modal, { ModalFooter } from '../components/Modal';
 import { GroupService } from '../services/GroupService';
 
 const GroupDetail = () => {
@@ -18,6 +18,8 @@ const GroupDetail = () => {
     const [newMemberEmail, setNewMemberEmail] = useState('');
     const [adding, setAdding] = useState(false);
     const [copied, setCopied] = useState(false);
+    const [showDeleteGroupModal, setShowDeleteGroupModal] = useState(false);
+    const [deleting, setDeleting] = useState(false);
 
     const joinCode = groupId ? groupId.substring(0, 6).toUpperCase() : '';
 
@@ -86,6 +88,19 @@ const GroupDetail = () => {
         }
     };
 
+    const handleDeleteGroup = async () => {
+        setDeleting(true);
+        try {
+            await GroupService.deleteGroup(groupId);
+            setShowDeleteGroupModal(false);
+            navigate('/groups');
+        } catch (err) {
+            alert(err.message || 'Failed to delete group');
+        } finally {
+            setDeleting(false);
+        }
+    };
+
     const isAdmin = group && group.owner_id === user?.id;
 
     if (loading) {
@@ -121,10 +136,28 @@ const GroupDetail = () => {
                         </p>
                     </div>
                     {isAdmin && (
-                        <button onClick={() => setShowInviteModal(true)} className="btn-primary">
-                            <UserPlus size={18} />
-                            Invite
-                        </button>
+                        <div style={{ display: 'flex', gap: '12px' }}>
+                            <button onClick={() => setShowInviteModal(true)} className="btn-primary">
+                                <UserPlus size={18} />
+                                Invite
+                            </button>
+                            <button
+                                onClick={() => setShowDeleteGroupModal(true)}
+                                style={{
+                                    padding: '10px',
+                                    borderRadius: '8px',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                    color: '#EF4444',
+                                    display: 'flex',
+                                    alignItems: 'center'
+                                }}
+                                title="Delete Group"
+                            >
+                                <Trash2 size={18} />
+                            </button>
+                        </div>
                     )}
                 </div>
             </div>
@@ -351,6 +384,65 @@ const GroupDetail = () => {
                         </button>
                     </form>
                 </div>
+            </Modal>
+
+            {/* Delete Group Modal */}
+            <Modal
+                isOpen={showDeleteGroupModal}
+                onClose={() => setShowDeleteGroupModal(false)}
+                title="Delete Group"
+                description="Are you sure you want to delete this group?"
+            >
+                <div style={{ padding: '20px 0' }}>
+                    <div style={{
+                        padding: '16px',
+                        borderRadius: '8px',
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        border: '1px solid #EF4444',
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: '12px'
+                    }}>
+                        <AlertTriangle size={20} style={{ color: '#EF4444', flexShrink: 0, marginTop: '2px' }} />
+                        <div>
+                            <p style={{ fontSize: '14px', color: '#EF4444', fontWeight: 600, marginBottom: '4px' }}>
+                                This action cannot be undone
+                            </p>
+                            <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                                All tournaments, teams, matches, and members in this group will be permanently deleted.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <ModalFooter>
+                    <button
+                        onClick={() => setShowDeleteGroupModal(false)}
+                        className="btn-secondary"
+                        disabled={deleting}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={handleDeleteGroup}
+                        disabled={deleting}
+                        style={{
+                            padding: '10px 20px',
+                            borderRadius: '8px',
+                            border: 'none',
+                            cursor: 'pointer',
+                            backgroundColor: '#EF4444',
+                            color: 'white',
+                            fontWeight: 600,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px'
+                        }}
+                    >
+                        {deleting ? <Loader2 className="animate-spin" size={16} /> : <Trash2 size={16} />}
+                        {deleting ? 'Deleting...' : 'Delete Group'}
+                    </button>
+                </ModalFooter>
             </Modal>
         </div>
     );

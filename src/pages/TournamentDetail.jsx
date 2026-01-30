@@ -283,19 +283,67 @@ const TournamentDetail = () => {
                         Matches ({matches.length})
                     </h2>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        {matches.map((match) => (
-                            <div key={match.id} className="item-row" style={{ justifyContent: 'space-between' }}>
-                                <div style={{ flex: 1, textAlign: 'center' }}>
-                                    <p style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{match.team_a?.name}</p>
+                        {matches.map((match) => {
+                            // Get team members from teams array
+                            const teamAFull = teams.find(t => t.id === match.team_a_id);
+                            const teamBFull = teams.find(t => t.id === match.team_b_id);
+                            const teamAMembers = teamAFull?.team_members || [];
+                            const teamBMembers = teamBFull?.team_members || [];
+                            const isComplete = !!match.winner_team_id;
+                            const isWinnerA = match.winner_team_id === match.team_a_id;
+
+                            return (
+                                <div
+                                    key={match.id}
+                                    className="item-row"
+                                    style={{
+                                        justifyContent: 'space-between',
+                                        alignItems: 'flex-start',
+                                        padding: '16px',
+                                        cursor: 'pointer'
+                                    }}
+                                    onClick={() => navigate(`/matches/${match.id}`)}
+                                >
+                                    <div style={{ flex: 1, textAlign: 'center' }}>
+                                        <p style={{
+                                            fontWeight: 600,
+                                            color: isComplete && isWinnerA ? 'var(--success-color)' : 'var(--text-primary)',
+                                            marginBottom: '8px'
+                                        }}>
+                                            {match.team_a?.name}
+                                            {isComplete && isWinnerA && ' ✓'}
+                                        </p>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'center' }}>
+                                            {teamAMembers.map((tm) => (
+                                                <span key={tm.player_id} style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                                                    {tm.player?.full_name || tm.player?.email}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div style={{ padding: '0 16px', alignSelf: 'center' }}>
+                                        <span className={isComplete ? 'badge badge-success' : 'badge badge-draft'}>VS</span>
+                                    </div>
+                                    <div style={{ flex: 1, textAlign: 'center' }}>
+                                        <p style={{
+                                            fontWeight: 600,
+                                            color: isComplete && !isWinnerA ? 'var(--success-color)' : 'var(--text-primary)',
+                                            marginBottom: '8px'
+                                        }}>
+                                            {match.team_b?.name}
+                                            {isComplete && !isWinnerA && ' ✓'}
+                                        </p>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'center' }}>
+                                            {teamBMembers.map((tm) => (
+                                                <span key={tm.player_id} style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                                                    {tm.player?.full_name || tm.player?.email}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
                                 </div>
-                                <div style={{ padding: '0 16px' }}>
-                                    <span className="badge badge-draft">VS</span>
-                                </div>
-                                <div style={{ flex: 1, textAlign: 'center' }}>
-                                    <p style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{match.team_b?.name}</p>
-                                </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
             )}
@@ -323,7 +371,7 @@ const TournamentDetail = () => {
                                     </label>
                                     <input
                                         type="text"
-                                        placeholder="e.g., Team Alpha"
+                                        placeholder="e.g., Team Alphas"
                                         className="input-field"
                                         value={newTeamName}
                                         onChange={(e) => setNewTeamName(e.target.value)}

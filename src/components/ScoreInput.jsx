@@ -208,7 +208,53 @@ export function SetScoreCard({
         onCancel?.();
     };
 
+    const handleIncrement = (team) => {
+        if (team === 'A') {
+            const newValue = Math.min(localScoreA + 1, 99);
+            handleScoreAChange(newValue);
+        } else {
+            const newValue = Math.min(localScoreB + 1, 99);
+            handleScoreBChange(newValue);
+        }
+    };
+
+    const handleDecrement = (team) => {
+        if (team === 'A') {
+            const newValue = Math.max(localScoreA - 1, 0);
+            handleScoreAChange(newValue);
+        } else {
+            const newValue = Math.max(localScoreB - 1, 0);
+            handleScoreBChange(newValue);
+        }
+    };
+
     const winner = localScoreA > localScoreB ? 'A' : localScoreB > localScoreA ? 'B' : null;
+
+    const ScoreButton = ({ onClick, disabled: btnDisabled, children }) => (
+        <button
+            type="button"
+            onClick={onClick}
+            disabled={disabled || btnDisabled}
+            style={{
+                width: '44px',
+                height: '44px',
+                borderRadius: '8px',
+                border: 'none',
+                backgroundColor: 'var(--bg-primary)',
+                color: 'var(--text-primary)',
+                cursor: disabled || btnDisabled ? 'not-allowed' : 'pointer',
+                opacity: disabled || btnDisabled ? 0.5 : 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.2s',
+                fontSize: '20px',
+                fontWeight: 'bold'
+            }}
+        >
+            {children}
+        </button>
+    );
 
     return (
         <div className="card" style={{
@@ -218,30 +264,90 @@ export function SetScoreCard({
             <h3 style={{
                 fontSize: '16px',
                 fontWeight: 700,
-                marginBottom: '20px',
+                marginBottom: '16px',
                 textAlign: 'center',
                 color: 'var(--text-primary)'
             }}>
                 Set {setNumber}
             </h3>
 
+            {/* Team Names Row */}
             <div style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr auto 1fr',
-                gap: '16px',
-                alignItems: 'center',
-                marginBottom: '16px'
+                display: 'flex',
+                justifyContent: 'space-between',
+                marginBottom: '12px',
+                padding: '0 8px'
             }}>
-                <ScoreInput
-                    label={teamAName}
-                    value={localScoreA}
-                    onChange={handleScoreAChange}
-                    disabled={disabled}
-                    teamColor={winner === 'A' ? 'var(--success-color)' : 'var(--text-primary)'}
-                />
+                <span style={{
+                    flex: 1,
+                    textAlign: 'center',
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    color: winner === 'A' ? 'var(--success-color)' : 'var(--text-primary)'
+                }}>
+                    {teamAName}
+                </span>
+                <span style={{ width: '40px' }}></span>
+                <span style={{
+                    flex: 1,
+                    textAlign: 'center',
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    color: winner === 'B' ? 'var(--success-color)' : 'var(--text-primary)'
+                }}>
+                    {teamBName}
+                </span>
+            </div>
 
+            {/* Score Inputs Row - All in one line */}
+            <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                padding: '12px',
+                borderRadius: '12px',
+                backgroundColor: 'var(--bg-secondary)'
+            }}>
+                {/* Team A Controls */}
+                <ScoreButton onClick={() => handleDecrement('A')} disabled={localScoreA <= 0}>
+                    −
+                </ScoreButton>
+                <input
+                    type="number"
+                    value={localScoreA}
+                    onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        if (!isNaN(val) && val >= 0 && val <= 99) {
+                            handleScoreAChange(val);
+                        } else if (e.target.value === '') {
+                            handleScoreAChange(0);
+                        }
+                    }}
+                    disabled={disabled}
+                    min="0"
+                    max="99"
+                    style={{
+                        width: '60px',
+                        height: '44px',
+                        textAlign: 'center',
+                        fontSize: '24px',
+                        fontWeight: 700,
+                        color: winner === 'A' ? 'var(--success-color)' : 'var(--text-primary)',
+                        backgroundColor: 'var(--bg-primary)',
+                        borderRadius: '8px',
+                        border: 'none',
+                        outline: 'none',
+                        MozAppearance: 'textfield'
+                    }}
+                />
+                <ScoreButton onClick={() => handleIncrement('A')} disabled={localScoreA >= 99}>
+                    +
+                </ScoreButton>
+
+                {/* Separator */}
                 <div style={{
-                    fontSize: '20px',
+                    fontSize: '24px',
                     fontWeight: 700,
                     color: 'var(--text-muted)',
                     padding: '0 8px'
@@ -249,20 +355,49 @@ export function SetScoreCard({
                     :
                 </div>
 
-                <ScoreInput
-                    label={teamBName}
+                {/* Team B Controls */}
+                <ScoreButton onClick={() => handleDecrement('B')} disabled={localScoreB <= 0}>
+                    −
+                </ScoreButton>
+                <input
+                    type="number"
                     value={localScoreB}
-                    onChange={handleScoreBChange}
+                    onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        if (!isNaN(val) && val >= 0 && val <= 99) {
+                            handleScoreBChange(val);
+                        } else if (e.target.value === '') {
+                            handleScoreBChange(0);
+                        }
+                    }}
                     disabled={disabled}
-                    teamColor={winner === 'B' ? 'var(--success-color)' : 'var(--text-primary)'}
+                    min="0"
+                    max="99"
+                    style={{
+                        width: '60px',
+                        height: '44px',
+                        textAlign: 'center',
+                        fontSize: '24px',
+                        fontWeight: 700,
+                        color: winner === 'B' ? 'var(--success-color)' : 'var(--text-primary)',
+                        backgroundColor: 'var(--bg-primary)',
+                        borderRadius: '8px',
+                        border: 'none',
+                        outline: 'none',
+                        MozAppearance: 'textfield'
+                    }}
                 />
+                <ScoreButton onClick={() => handleIncrement('B')} disabled={localScoreB >= 99}>
+                    +
+                </ScoreButton>
             </div>
 
             {hasChanges && (
                 <div style={{
                     display: 'flex',
                     gap: '12px',
-                    justifyContent: 'center'
+                    justifyContent: 'center',
+                    marginTop: '16px'
                 }}>
                     <button
                         onClick={handleCancel}

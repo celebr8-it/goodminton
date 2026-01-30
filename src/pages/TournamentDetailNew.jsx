@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTournament } from '../hooks/useTournament';
 import { useAuth } from '../lib/AuthContext';
+import { TournamentService } from '../services/TournamentService';
 import {
     ArrowLeft,
     Trophy,
@@ -18,7 +19,8 @@ import {
     Trash2,
     CheckCircle,
     TrendingUp,
-    Eye
+    Eye,
+    AlertTriangle
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import Modal, { ModalFooter } from '../components/Modal';
@@ -52,6 +54,12 @@ const TournamentDetailPage = () => {
     const [creatingTeam, setCreatingTeam] = useState(false);
     const [generating, setGenerating] = useState(false);
     const [showCompleteModal, setShowCompleteModal] = useState(false);
+    const [showDeleteTournamentModal, setShowDeleteTournamentModal] = useState(false);
+    const [deleting, setDeleting] = useState(false);
+    const [showAddMatchModal, setShowAddMatchModal] = useState(false);
+    const [selectedTeamA, setSelectedTeamA] = useState('');
+    const [selectedTeamB, setSelectedTeamB] = useState('');
+    const [creatingMatch, setCreatingMatch] = useState(false);
 
     // Load group members
     React.useEffect(() => {
@@ -196,6 +204,49 @@ const TournamentDetailPage = () => {
         }
     };
 
+    /**
+     * Handle tournament deletion
+     */
+    const handleDeleteTournament = async () => {
+        setDeleting(true);
+        try {
+            await TournamentService.deleteTournament(tournamentId);
+            setShowDeleteTournamentModal(false);
+            navigate(`/groups/${tournament.group_id}`);
+        } catch (err) {
+            alert(err.message);
+        } finally {
+            setDeleting(false);
+        }
+    };
+
+    /**
+     * Handle custom match creation
+     */
+    const handleCreateCustomMatch = async () => {
+        if (!selectedTeamA || !selectedTeamB) {
+            alert('Please select both teams');
+            return;
+        }
+        if (selectedTeamA === selectedTeamB) {
+            alert('Please select different teams');
+            return;
+        }
+
+        setCreatingMatch(true);
+        try {
+            await TournamentService.createCustomMatch(tournamentId, selectedTeamA, selectedTeamB);
+            setShowAddMatchModal(false);
+            setSelectedTeamA('');
+            setSelectedTeamB('');
+            refetch();
+        } catch (err) {
+            alert(err.message);
+        } finally {
+            setCreatingMatch(false);
+        }
+    };
+
     const toggleMemberSelection = (playerId) => {
         setSelectedMembers(prev =>
             prev.includes(playerId)
@@ -269,15 +320,37 @@ const TournamentDetailPage = () => {
                         </p>
                     </div>
 
-                    <span className={
-                        isCompleted ? 'badge badge-success' :
-                            isActive ? 'badge badge-primary' :
-                                'badge badge-draft'
-                    }>
-                        {isCompleted ? '✓ Completed' :
-                            isActive ? '▶ Active' :
-                                '○ Draft'}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <span className={
+                            isCompleted ? 'badge badge-success' :
+                                isActive ? 'badge badge-primary' :
+                                    'badge badge-draft'
+                        }>
+                            {isCompleted ? '✓ Completed' :
+                                isActive ? '▶ Active' :
+                                    '○ Draft'}
+                        </span>
+
+                        {isDraft && (
+                            <button
+                                onClick={() => setShowDeleteTournamentModal(true)}
+                                style={{
+                                    padding: '8px',
+                                    borderRadius: '8px',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                    color: '#EF4444',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px'
+                                }}
+                                title="Delete Tournament"
+                            >
+                                <Trash2 size={16} />
+                            </button>
+                        )}
+                    </div>
                 </div>
 
                 {/* Statistics */}
@@ -355,38 +428,60 @@ const TournamentDetailPage = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {standings.map((standing, index) => (
-                                    <tr key={standing.team.id} style={{
-                                        borderBottom: '1px solid var(--border-color)',
-                                        backgroundColor: index === 0 ? 'rgba(34, 197, 94, 0.05)' : 'transparent'
-                                    }}>
-                                        <td style={{ padding: '12px', fontSize: '14px', fontWeight: 600 }}>
-                                            {index + 1}
-                                            {index === 0 && <Trophy size={16} style={{ color: 'var(--success-color)', marginLeft: '6px', display: 'inline' }} />}
-                                        </td>
-                                        <td style={{ padding: '12px', fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                                            {standing.team.name}
-                                        </td>
-                                        <td style={{ padding: '12px', textAlign: 'center', fontSize: '14px', color: 'var(--text-muted)' }}>
-                                            {standing.matchesPlayed}
-                                        </td>
-                                        <td style={{ padding: '12px', textAlign: 'center', fontSize: '14px', color: 'var(--success-color)' }}>
-                                            {standing.matchesWon}
-                                        </td>
-                                        <td style={{ padding: '12px', textAlign: 'center', fontSize: '14px', color: 'var(--text-muted)' }}>
-                                            {standing.matchesLost}
-                                        </td>
-                                        <td style={{ padding: '12px', textAlign: 'center', fontSize: '14px', color: 'var(--text-muted)' }}>
-                                            {standing.setsWon}-{standing.setsLost}
-                                        </td>
-                                        <td style={{ padding: '12px', textAlign: 'center', fontSize: '14px', color: 'var(--text-muted)' }}>
-                                            {standing.pointsWon}-{standing.pointsLost}
-                                        </td>
-                                        <td style={{ padding: '12px', textAlign: 'center', fontSize: '16px', fontWeight: 700, color: 'var(--accent-primary)' }}>
-                                            {standing.points}
-                                        </td>
-                                    </tr>
-                                ))}
+                                {standings.map((standing, index) => {
+                                    // Get team members from teams array
+                                    const teamFull = teams.find(t => t.id === standing.team.id);
+                                    const teamMembers = teamFull?.team_members || [];
+
+                                    return (
+                                        <tr key={standing.team.id} style={{
+                                            borderBottom: '1px solid var(--border-color)',
+                                            backgroundColor: index === 0 ? 'rgba(34, 197, 94, 0.05)' : 'transparent'
+                                        }}>
+                                            <td style={{ padding: '12px', fontSize: '14px', fontWeight: 600, verticalAlign: 'top' }}>
+                                                {index + 1}
+                                                {index === 0 && <Trophy size={16} style={{ color: 'var(--success-color)', marginLeft: '6px', display: 'inline' }} />}
+                                            </td>
+                                            <td style={{ padding: '12px', verticalAlign: 'top' }}>
+                                                <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
+                                                    {standing.team.name}
+                                                </div>
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                                    {teamMembers.map((tm) => (
+                                                        <span
+                                                            key={tm.player_id}
+                                                            style={{
+                                                                fontSize: '12px',
+                                                                color: 'var(--text-muted)'
+                                                            }}
+                                                        >
+                                                            {tm.players?.full_name || tm.players?.email}
+                                                            {teamMembers.indexOf(tm) < teamMembers.length - 1 && ', '}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </td>
+                                            <td style={{ padding: '12px', textAlign: 'center', fontSize: '14px', color: 'var(--text-muted)', verticalAlign: 'top' }}>
+                                                {standing.matchesPlayed}
+                                            </td>
+                                            <td style={{ padding: '12px', textAlign: 'center', fontSize: '14px', color: 'var(--success-color)', verticalAlign: 'top' }}>
+                                                {standing.matchesWon}
+                                            </td>
+                                            <td style={{ padding: '12px', textAlign: 'center', fontSize: '14px', color: 'var(--text-muted)', verticalAlign: 'top' }}>
+                                                {standing.matchesLost}
+                                            </td>
+                                            <td style={{ padding: '12px', textAlign: 'center', fontSize: '14px', color: 'var(--text-muted)', verticalAlign: 'top' }}>
+                                                {standing.setsWon}-{standing.setsLost}
+                                            </td>
+                                            <td style={{ padding: '12px', textAlign: 'center', fontSize: '14px', color: 'var(--text-muted)', verticalAlign: 'top' }}>
+                                                {standing.pointsWon}-{standing.pointsLost}
+                                            </td>
+                                            <td style={{ padding: '12px', textAlign: 'center', fontSize: '16px', fontWeight: 700, color: 'var(--accent-primary)', verticalAlign: 'top' }}>
+                                                {standing.points}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
@@ -481,10 +576,10 @@ const TournamentDetailPage = () => {
                                             style={{ display: 'flex', alignItems: 'center', gap: '10px' }}
                                         >
                                             <div className="avatar avatar-sm">
-                                                {tm.player?.full_name?.charAt(0) || tm.player?.email?.charAt(0)}
+                                                {tm.players?.full_name?.charAt(0) || tm.players?.email?.charAt(0)}
                                             </div>
                                             <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
-                                                {tm.player?.full_name || tm.player?.email}
+                                                {tm.players?.full_name || tm.players?.email}
                                             </span>
                                         </div>
                                     ))}
@@ -508,17 +603,38 @@ const TournamentDetailPage = () => {
             </div>
 
             {/* Matches Section */}
-            {matches.length > 0 && (
+            {(matches.length > 0 || isActive) && (
                 <div className="card">
-                    <h2 className="section-title" style={{ marginBottom: '20px' }}>
-                        <Trophy size={20} />
-                        Matches ({matches.length})
-                    </h2>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+                        <h2 className="section-title">
+                            <Trophy size={20} />
+                            Matches ({matches.length})
+                        </h2>
+                        {isActive && teams.length >= 2 && (
+                            <button
+                                onClick={() => {
+                                    setSelectedTeamA('');
+                                    setSelectedTeamB('');
+                                    setShowAddMatchModal(true);
+                                }}
+                                className="btn-secondary"
+                            >
+                                <Plus size={16} />
+                                Add Match
+                            </button>
+                        )}
+                    </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                         {matches.map((match) => {
                             const isMatchComplete = !!match.winner_team_id;
                             const isWinnerA = match.winner_team_id === match.team_a_id;
+
+                            // Get team members from teams array
+                            const teamAFull = teams.find(t => t.id === match.team_a_id);
+                            const teamBFull = teams.find(t => t.id === match.team_b_id);
+                            const teamAMembers = teamAFull?.team_members || [];
+                            const teamBMembers = teamBFull?.team_members || [];
 
                             return (
                                 <div
@@ -527,43 +643,96 @@ const TournamentDetailPage = () => {
                                     style={{
                                         justifyContent: 'space-between',
                                         cursor: 'pointer',
-                                        position: 'relative'
+                                        position: 'relative',
+                                        alignItems: 'flex-start',
+                                        padding: '16px'
                                     }}
                                     onClick={() => navigate(`/matches/${match.id}`)}
                                 >
-                                    <div style={{ flex: 1, textAlign: 'center' }}>
-                                        <p style={{
-                                            fontWeight: 600,
-                                            color: isMatchComplete && isWinnerA ? 'var(--success-color)' : 'var(--text-primary)'
-                                        }}>
-                                            {match.team_a?.name}
-                                            {isMatchComplete && isWinnerA && ' ✓'}
-                                        </p>
+                                    {/* Match content - teams and VS badge */}
+                                    <div style={{
+                                        display: 'flex',
+                                        flex: 1,
+                                        alignItems: 'center',
+                                        minWidth: 0
+                                    }}>
+                                        <div style={{ flex: 1, textAlign: 'center', minWidth: 0 }}>
+                                            <p style={{
+                                                fontWeight: 600,
+                                                color: isMatchComplete && isWinnerA ? 'var(--success-color)' : 'var(--text-primary)',
+                                                marginBottom: '8px'
+                                            }}>
+                                                {match.team_a?.name}
+                                                {isMatchComplete && isWinnerA && ' ✓'}
+                                            </p>
+                                            <div style={{
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                gap: '2px',
+                                                alignItems: 'center'
+                                            }}>
+                                                {teamAMembers.map((tm) => (
+                                                    <span
+                                                        key={tm.player_id}
+                                                        style={{
+                                                            fontSize: '11px',
+                                                            color: 'var(--text-muted)'
+                                                        }}
+                                                    >
+                                                        {tm.players?.full_name || tm.players?.email}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div style={{ padding: '0 12px', flexShrink: 0 }}>
+                                            <span className={isMatchComplete ? 'badge badge-success' : 'badge badge-draft'}>
+                                                VS
+                                            </span>
+                                        </div>
+
+                                        <div style={{ flex: 1, textAlign: 'center', minWidth: 0 }}>
+                                            <p style={{
+                                                fontWeight: 600,
+                                                color: isMatchComplete && !isWinnerA ? 'var(--success-color)' : 'var(--text-primary)',
+                                                marginBottom: '8px'
+                                            }}>
+                                                {match.team_b?.name}
+                                                {isMatchComplete && !isWinnerA && ' ✓'}
+                                            </p>
+                                            <div style={{
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                gap: '2px',
+                                                alignItems: 'center'
+                                            }}>
+                                                {teamBMembers.map((tm) => (
+                                                    <span
+                                                        key={tm.player_id}
+                                                        style={{
+                                                            fontSize: '11px',
+                                                            color: 'var(--text-muted)'
+                                                        }}
+                                                    >
+                                                        {tm.players?.full_name || tm.players?.email}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
                                     </div>
 
-                                    <div style={{ padding: '0 16px' }}>
-                                        <span className={isMatchComplete ? 'badge badge-success' : 'badge badge-draft'}>
-                                            VS
-                                        </span>
-                                    </div>
-
-                                    <div style={{ flex: 1, textAlign: 'center' }}>
-                                        <p style={{
-                                            fontWeight: 600,
-                                            color: isMatchComplete && !isWinnerA ? 'var(--success-color)' : 'var(--text-primary)'
-                                        }}>
-                                            {match.team_b?.name}
-                                            {isMatchComplete && !isWinnerA && ' ✓'}
-                                        </p>
-                                    </div>
-
+                                    {/* Record/View button */}
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             navigate(`/matches/${match.id}`);
                                         }}
                                         className="btn-secondary"
-                                        style={{ marginLeft: '16px' }}
+                                        style={{
+                                            marginLeft: '12px',
+                                            flexShrink: 0,
+                                            alignSelf: 'center'
+                                        }}
                                     >
                                         <Eye size={16} />
                                         {isMatchComplete ? 'View' : 'Record'}
@@ -732,6 +901,138 @@ const TournamentDetailPage = () => {
                     >
                         {actionLoading ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle size={16} />}
                         {actionLoading ? 'Completing...' : 'Confirm Complete'}
+                    </button>
+                </ModalFooter>
+            </Modal>
+
+            {/* Delete Tournament Modal */}
+            <Modal
+                isOpen={showDeleteTournamentModal}
+                onClose={() => setShowDeleteTournamentModal(false)}
+                title="Delete Tournament"
+                description="Are you sure you want to delete this tournament?"
+            >
+                <div style={{ padding: '20px 0' }}>
+                    <div style={{
+                        padding: '16px',
+                        borderRadius: '8px',
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        border: '1px solid #EF4444',
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: '12px'
+                    }}>
+                        <AlertTriangle size={20} style={{ color: '#EF4444', flexShrink: 0, marginTop: '2px' }} />
+                        <div>
+                            <p style={{ fontSize: '14px', color: '#EF4444', fontWeight: 600, marginBottom: '4px' }}>
+                                This action cannot be undone
+                            </p>
+                            <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                                All teams and matches in this tournament will be permanently deleted.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <ModalFooter>
+                    <button
+                        onClick={() => setShowDeleteTournamentModal(false)}
+                        className="btn-secondary"
+                        disabled={deleting}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={handleDeleteTournament}
+                        disabled={deleting}
+                        style={{
+                            padding: '10px 20px',
+                            borderRadius: '8px',
+                            border: 'none',
+                            cursor: 'pointer',
+                            backgroundColor: '#EF4444',
+                            color: 'white',
+                            fontWeight: 600,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px'
+                        }}
+                    >
+                        {deleting ? <Loader2 className="animate-spin" size={16} /> : <Trash2 size={16} />}
+                        {deleting ? 'Deleting...' : 'Delete Tournament'}
+                    </button>
+                </ModalFooter>
+            </Modal>
+
+            {/* Add Custom Match Modal */}
+            <Modal
+                isOpen={showAddMatchModal}
+                onClose={() => setShowAddMatchModal(false)}
+                title="Add Custom Match"
+            >
+                <p style={{ color: 'var(--text-muted)', marginBottom: '20px' }}>
+                    Select two teams to create a match between them.
+                </p>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <div>
+                        <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500 }}>
+                            Team A
+                        </label>
+                        <select
+                            value={selectedTeamA}
+                            onChange={(e) => setSelectedTeamA(e.target.value)}
+                            className="select-field"
+                            style={{ width: '100%' }}
+                        >
+                            <option value="">Select team...</option>
+                            {teams.map(team => (
+                                <option key={team.id} value={team.id} disabled={team.id === selectedTeamB}>
+                                    {team.name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontWeight: 700 }}>
+                        VS
+                    </div>
+
+                    <div>
+                        <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500 }}>
+                            Team B
+                        </label>
+                        <select
+                            value={selectedTeamB}
+                            onChange={(e) => setSelectedTeamB(e.target.value)}
+                            className="select-field"
+                            style={{ width: '100%' }}
+                        >
+                            <option value="">Select team...</option>
+                            {teams.map(team => (
+                                <option key={team.id} value={team.id} disabled={team.id === selectedTeamA}>
+                                    {team.name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                </div>
+
+                <ModalFooter>
+                    <button
+                        onClick={() => setShowAddMatchModal(false)}
+                        className="btn-secondary"
+                        disabled={creatingMatch}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={handleCreateCustomMatch}
+                        className="btn-primary"
+                        disabled={creatingMatch || !selectedTeamA || !selectedTeamB}
+                    >
+                        {creatingMatch ? <Loader2 className="animate-spin" size={16} /> : <Plus size={16} />}
+                        {creatingMatch ? 'Creating...' : 'Create Match'}
                     </button>
                 </ModalFooter>
             </Modal>

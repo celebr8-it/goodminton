@@ -178,7 +178,9 @@ export class MatchService {
       }
     });
 
-    const maxSets = tournament.max_sets || 3;
+    // Check if single set mode based on scoring_type
+    const isSingleSet = tournament.scoring_type === 'single_21' || tournament.scoring_type === 'single_30';
+    const maxSets = isSingleSet ? 1 : (tournament.max_sets || 3);
     const setsToWin = Math.ceil(maxSets / 2);
 
     // Check if match is complete

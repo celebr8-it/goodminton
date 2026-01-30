@@ -154,44 +154,68 @@ const MatchDetail = () => {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            gap: '12px'
+            gap: '12px',
+            overflow: 'hidden'
         }}>
+            {/* Team Name with Trophy below if winner */}
             <div style={{
                 display: 'flex',
+                flexDirection: 'column',
                 alignItems: 'center',
-                gap: '8px'
+                gap: '4px'
             }}>
-                {isWinner && <Trophy size={20} style={{ color: 'var(--success-color)' }} />}
                 <h3 style={{
-                    fontSize: '20px',
+                    fontSize: '18px',
                     fontWeight: 700,
-                    color: isWinner ? 'var(--success-color)' : 'var(--text-primary)'
+                    color: isWinner ? 'var(--success-color)' : 'var(--text-primary)',
+                    textAlign: 'center'
                 }}>
                     {team.name}
                 </h3>
+                {isWinner && (
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        color: 'var(--success-color)',
+                        fontSize: '12px',
+                        fontWeight: 600
+                    }}>
+                        <Trophy size={14} />
+                        Winner
+                    </div>
+                )}
             </div>
 
+            {/* Team Members - stacked vertically */}
             <div style={{
                 display: 'flex',
-                flexWrap: 'wrap',
-                gap: '8px',
-                justifyContent: 'center'
+                flexDirection: 'column',
+                gap: '6px',
+                alignItems: 'center',
+                width: '100%'
             }}>
                 {team.team_members?.map((tm) => (
                     <div key={tm.player_id} style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '8px',
-                        padding: '6px 12px',
-                        borderRadius: '8px',
-                        backgroundColor: 'var(--bg-secondary)',
-                        fontSize: '14px'
+                        gap: '6px',
+                        padding: '4px 8px',
+                        borderRadius: '6px',
+                        backgroundColor: 'var(--bg-primary)',
+                        fontSize: '13px',
+                        maxWidth: '100%'
                     }}>
-                        <div className="avatar avatar-sm">
-                            {tm.player?.full_name?.charAt(0) || tm.player?.email?.charAt(0)}
+                        <div className="avatar avatar-sm" style={{ flexShrink: 0 }}>
+                            {tm.players?.full_name?.charAt(0) || tm.players?.email?.charAt(0) || tm.player?.full_name?.charAt(0) || tm.player?.email?.charAt(0)}
                         </div>
-                        <span style={{ color: 'var(--text-muted)' }}>
-                            {tm.player?.full_name || tm.player?.email}
+                        <span style={{
+                            color: 'var(--text-muted)',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                        }}>
+                            {tm.players?.full_name || tm.players?.email || tm.player?.full_name || tm.player?.email}
                         </span>
                     </div>
                 ))}
@@ -374,33 +398,114 @@ const MatchDetail = () => {
                     </span>
                 </div>
 
-                {/* Teams Display */}
+                {/* Teams Display - Responsive Layout */}
                 <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr auto 1fr',
-                    gap: '24px',
-                    alignItems: 'center',
-                    padding: '24px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '16px',
+                    padding: '20px',
                     borderRadius: '12px',
                     backgroundColor: 'var(--bg-secondary)'
                 }}>
-                    {renderTeamInfo(
-                        teamA,
-                        isCompleted && winnerInfo?.winnerId === 'team_a'
-                    )}
-
+                    {/* Team Names Row */}
                     <div style={{
-                        fontSize: '32px',
-                        fontWeight: 700,
-                        color: 'var(--text-muted)'
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between'
                     }}>
-                        VS
+                        <div style={{
+                            flex: 1,
+                            textAlign: 'center',
+                            color: isCompleted && winnerInfo?.winnerId === 'team_a' ? 'var(--success-color)' : 'var(--text-primary)'
+                        }}>
+                            <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '4px' }}>
+                                {teamA.name}
+                            </h3>
+                            {isCompleted && winnerInfo?.winnerId === 'team_a' && (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', fontSize: '12px' }}>
+                                    <Trophy size={12} />
+                                    Winner
+                                </div>
+                            )}
+                        </div>
+
+                        <div style={{
+                            fontSize: '20px',
+                            fontWeight: 700,
+                            color: 'var(--text-muted)',
+                            padding: '0 16px'
+                        }}>
+                            VS
+                        </div>
+
+                        <div style={{
+                            flex: 1,
+                            textAlign: 'center',
+                            color: isCompleted && winnerInfo?.winnerId === 'team_b' ? 'var(--success-color)' : 'var(--text-primary)'
+                        }}>
+                            <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '4px' }}>
+                                {teamB.name}
+                            </h3>
+                            {isCompleted && winnerInfo?.winnerId === 'team_b' && (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', fontSize: '12px' }}>
+                                    <Trophy size={12} />
+                                    Winner
+                                </div>
+                            )}
+                        </div>
                     </div>
 
-                    {renderTeamInfo(
-                        teamB,
-                        isCompleted && winnerInfo?.winnerId === 'team_b'
-                    )}
+                    {/* Players Row */}
+                    <div style={{
+                        display: 'flex',
+                        gap: '16px'
+                    }}>
+                        {/* Team A Players */}
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            {teamA.team_members?.map((tm) => {
+                                const name = tm.players?.full_name || tm.players?.email || tm.player?.full_name || tm.player?.email;
+                                return (
+                                    <div key={tm.player_id} style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px',
+                                        padding: '8px 10px',
+                                        borderRadius: '8px',
+                                        backgroundColor: 'var(--bg-primary)',
+                                        fontSize: '13px'
+                                    }}>
+                                        <div className="avatar avatar-sm" style={{ flexShrink: 0 }}>
+                                            {name?.charAt(0)}
+                                        </div>
+                                        <span style={{ color: 'var(--text-muted)' }}>{name}</span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        {/* Team B Players */}
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            {teamB.team_members?.map((tm) => {
+                                const name = tm.players?.full_name || tm.players?.email || tm.player?.full_name || tm.player?.email;
+                                return (
+                                    <div key={tm.player_id} style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px',
+                                        padding: '8px 10px',
+                                        borderRadius: '8px',
+                                        backgroundColor: 'var(--bg-primary)',
+                                        fontSize: '13px'
+                                    }}>
+                                        <div className="avatar avatar-sm" style={{ flexShrink: 0 }}>
+                                            {name?.charAt(0)}
+                                        </div>
+                                        <span style={{ color: 'var(--text-muted)' }}>{name}</span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
                 </div>
 
                 {/* Match Info */}

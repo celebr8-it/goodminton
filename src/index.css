@@ -15,9 +15,11 @@
 
   /* ========== THEME COLOR - CHANGE THIS TO CUSTOMIZE ========== */
   /* Main brand color - Change this hex value to switch theme */
-  --theme-hue: 248;        /* Purple: 248, Blue: 215, Green: 142, Orange: 25, Pink: 330 */
-  --theme-saturation: 90%; /* Color intensity (0-100%) */
-  
+  --theme-hue: 248;
+  /* Purple: 248, Blue: 215, Green: 142, Orange: 25, Pink: 330 */
+  --theme-saturation: 90%;
+  /* Color intensity (0-100%) */
+
   /* Auto-generated theme colors from HSL */
   --theme-50: hsl(var(--theme-hue), calc(var(--theme-saturation) * 0.9), 97%);
   --theme-100: hsl(var(--theme-hue), calc(var(--theme-saturation) * 0.95), 94%);
@@ -36,7 +38,7 @@
   --text-primary: #0F172A;
   --text-muted: #64748B;
   --border-color: #E2E8F0;
-  
+
   /* Theme-based accent colors */
   --accent-primary: var(--theme-600);
   --accent-hover: var(--theme-700);
@@ -50,7 +52,7 @@
   --text-primary: #F8FAFC;
   --text-muted: #94A3B8;
   --border-color: #334155;
-  
+
   /* Lighter theme colors for dark mode */
   --accent-primary: var(--theme-500);
   --accent-hover: var(--theme-400);
@@ -204,6 +206,17 @@ body {
 .select-field:focus {
   border-color: var(--accent-primary);
   box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
+}
+
+.select-field option {
+  background-color: var(--bg-surface);
+  color: var(--text-primary);
+  padding: 12px;
+}
+
+.dark .select-field option {
+  background-color: #1E293B;
+  color: #F8FAFC;
 }
 
 /* ========== TYPOGRAPHY ========== */

@@ -196,4 +196,35 @@ export class GroupService {
     if (error) throw error;
     return data;
   }
+
+  /**
+   * Delete a group (owner only)
+   * @param {string} groupId - Group ID
+   * @returns {Promise<void>}
+   */
+  static async deleteGroup(groupId) {
+    const { error } = await supabase
+      .from("groups")
+      .delete()
+      .eq("id", groupId);
+
+    if (error) throw error;
+  }
+
+  /**
+   * Check if user is group owner
+   * @param {string} groupId - Group ID  
+   * @param {string} userId - User ID
+   * @returns {Promise<boolean>}
+   */
+  static async isGroupOwner(groupId, userId) {
+    const { data, error } = await supabase
+      .from("groups")
+      .select("owner_id")
+      .eq("id", groupId)
+      .single();
+
+    if (error) return false;
+    return data?.owner_id === userId;
+  }
 }
