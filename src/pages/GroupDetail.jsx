@@ -4,6 +4,8 @@ import { useAuth } from '../lib/AuthContext';
 import { ArrowLeft, UserPlus, Trophy, Copy, Check, Plus, Users, Crown, Loader2, Trash2, AlertTriangle } from 'lucide-react';
 import Modal, { ModalFooter } from '../components/Modal';
 import { GroupService } from '../services/GroupService';
+import { UserService } from '../services/UserService';
+import { supabase } from '../lib/supabase';
 
 const GroupDetail = () => {
     const { groupId } = useParams();
@@ -21,11 +23,22 @@ const GroupDetail = () => {
     const [showDeleteGroupModal, setShowDeleteGroupModal] = useState(false);
     const [deleting, setDeleting] = useState(false);
 
+    // Global Admin State
+    const [globalPlayers, setGlobalPlayers] = useState([]);
+    const [selectedPlayers, setSelectedPlayers] = useState([]);
+    const [addingMultiple, setAddingMultiple] = useState(false);
+    const isGlobalAdmin = UserService.isAdmin(user);
+
     const joinCode = groupId ? groupId.substring(0, 6).toUpperCase() : '';
 
     useEffect(() => {
         fetchGroupData();
-    }, [groupId]);
+        if (isGlobalAdmin) {
+            UserService.getAllPlayers()
+                .then(data => setGlobalPlayers(data))
+                .catch(err => console.error('Error fetching global players:', err));
+        }
+    }, [groupId, isGlobalAdmin]);
 
     const fetchGroupData = async () => {
         try {
@@ -85,6 +98,53 @@ const GroupDetail = () => {
             alert('Failed to add member');
         } finally {
             setAdding(false);
+        }
+    };
+
+    const handleAddMultipleMembers = async () => {
+        if (selectedPlayers.length === 0) return;
+        setAddingMultiple(true);
+
+        try {
+            const inserts = selectedPlayers.map(pid => ({
+                group_id: groupId,
+                player_id: pid,
+                role: 'member'
+            }));
+
+            const { error: memberError } = await supabase
+                .from('group_members')
+                .insert(inserts);
+
+            if (memberError) throw memberError;
+
+            setSelectedPlayers([]);
+            setShowInviteModal(false);
+            fetchGroupData();
+        } catch (err) {
+            console.error('Error adding multiple members:', err);
+            alert('Failed to add selected members');
+        } finally {
+            setAddingMultiple(false);
+        }
+    };
+
+    const togglePlayerSelection = (playerId) => {
+        setSelectedPlayers(prev => 
+            prev.includes(playerId) 
+                ? prev.filter(id => id !== playerId)
+                : [...prev, playerId]
+        );
+    };
+
+    const handleRemoveMember = async (playerId) => {
+        if (!window.confirm("Are you sure you want to remove this member?")) return;
+        try {
+            await GroupService.removeMember(groupId, playerId);
+            fetchGroupData();
+        } catch (err) {
+            console.error('Error removing member:', err);
+            alert('Failed to remove member. They might be an owner or there is an error.');
         }
     };
 
@@ -187,6 +247,25 @@ const GroupDetail = () => {
                                 </p>
                             </div>
                             {member.role === 'admin' && <Crown size={16} style={{ color: '#F59E0B', flexShrink: 0 }} />}
+                            {(isAdmin || isGlobalAdmin) && member.id !== group.owner_id && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleRemoveMember(member.id);
+                                    }}
+                                    style={{
+                                        padding: '6px',
+                                        borderRadius: '6px',
+                                        border: 'none',
+                                        background: 'transparent',
+                                        color: '#EF4444',
+                                        cursor: 'pointer',
+                                    }}
+                                    title="Remove member"
+                                >
+                                    <Trash2 size={16} />
+                                </button>
+                            )}
                         </div>
                     ))}
                 </div>
@@ -384,6 +463,62 @@ const GroupDetail = () => {
                         </button>
                     </form>
                 </div>
+
+                {isGlobalAdmin && (
+                    <div style={{ paddingTop: '24px', marginTop: '24px', borderTop: '1px solid var(--border-color)' }}>
+                        <p style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px', color: 'var(--text-primary)' }}>
+                            Admin: Add Existing Users to Group
+                        </p>
+                        <div style={{ maxHeight: '200px', overflowY: 'auto', marginBottom: '16px', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
+                            {globalPlayers.filter(p => !members.some(m => m.id === p.id)).map(player => (
+                                <div 
+                                    key={player.id} 
+                                    style={{ 
+                                        padding: '8px 12px', 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        gap: '12px',
+                                        borderBottom: '1px solid var(--border-color)',
+                                        cursor: 'pointer',
+                                        backgroundColor: selectedPlayers.includes(player.id) ? 'rgba(79, 70, 229, 0.1)' : 'transparent'
+                                    }}
+                                    onClick={() => togglePlayerSelection(player.id)}
+                                >
+                                    <input 
+                                        type="checkbox" 
+                                        checked={selectedPlayers.includes(player.id)}
+                                        readOnly
+                                        style={{ cursor: 'pointer' }}
+                                    />
+                                    <div style={{ flex: 1 }}>
+                                        <p style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)', margin: 0 }}>{player.full_name || 'Anonymous'}</p>
+                                        <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0 }}>{player.email}</p>
+                                    </div>
+                                </div>
+                            ))}
+                            {globalPlayers.filter(p => !members.some(m => m.id === p.id)).length === 0 && (
+                                <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '14px' }}>
+                                    All users are already in this group.
+                                </div>
+                            )}
+                        </div>
+                        <button 
+                            onClick={handleAddMultipleMembers} 
+                            disabled={addingMultiple || selectedPlayers.length === 0} 
+                            className="btn-primary" 
+                            style={{ width: '100%' }}
+                        >
+                            {addingMultiple ? (
+                                <>
+                                    <Loader2 className="animate-spin" size={16} />
+                                    Adding selected...
+                                </>
+                            ) : (
+                                `Add Selected Members (${selectedPlayers.length})`
+                            )}
+                        </button>
+                    </div>
+                )}
             </Modal>
 
             {/* Delete Group Modal */}

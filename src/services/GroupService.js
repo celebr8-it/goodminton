@@ -170,6 +170,19 @@ export class GroupService {
   }
 
   /**
+   * Remove member from group
+   */
+  static async removeMember(groupId, playerId) {
+    const { error } = await supabase
+      .from("group_members")
+      .delete()
+      .eq("group_id", groupId)
+      .eq("player_id", playerId);
+
+    if (error) throw error;
+  }
+
+  /**
    * Create standalone match (not part of tournament)
    */
   static async createStandaloneMatch({

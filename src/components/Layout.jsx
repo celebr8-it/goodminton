@@ -1,9 +1,10 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Trophy, Users, Home, Moon, Sun, LogOut } from 'lucide-react';
+import { Trophy, Users, Home, Moon, Sun, LogOut, Map } from 'lucide-react';
 import { useTheme } from '../lib/ThemeContext';
 import { useAuth } from '../lib/AuthContext';
 import { supabase } from '../lib/supabase';
+import { UserService } from '../services/UserService';
 import clsx from 'clsx';
 
 const Layout = ({ children }) => {
@@ -16,6 +17,10 @@ const Layout = ({ children }) => {
         { icon: Users, label: 'Groups', path: '/groups' },
         { icon: Trophy, label: 'Tournaments', path: '/tournaments' },
     ];
+
+    if (UserService.isAdmin(user)) {
+        navItems.push({ icon: Map, label: 'Users', path: '/user-map' });
+    }
 
     const handleLogout = async () => {
         await supabase.auth.signOut();

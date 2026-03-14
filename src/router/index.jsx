@@ -13,6 +13,8 @@ import CreateMatch from '../pages/CreateMatch';
 import Tournaments from '../pages/Tournaments';
 import TournamentDetail from '../pages/TournamentDetailNew';
 import MatchDetail from '../pages/MatchDetail';
+import UserMap from '../pages/UserMap';
+import { UserService } from '../services/UserService';
 
 /**
  * Protected Route Wrapper
@@ -23,6 +25,20 @@ const ProtectedRoute = ({ children }) => {
 
     if (!user) {
         return <Navigate to="/auth" replace />;
+    }
+
+    return <Layout>{children}</Layout>;
+};
+
+/**
+ * Admin Route Wrapper
+ * Redirects to /home if user is not an admin
+ */
+const AdminRoute = ({ children }) => {
+    const { user } = useAuth();
+
+    if (!user || !UserService.isAdmin(user)) {
+        return <Navigate to="/home" replace />;
     }
 
     return <Layout>{children}</Layout>;
@@ -136,6 +152,16 @@ function AppRouter() {
                     <ProtectedRoute>
                         <MatchDetail />
                     </ProtectedRoute>
+                }
+            />
+
+            {/* Admin Routes */}
+            <Route
+                path="/user-map"
+                element={
+                    <AdminRoute>
+                        <UserMap />
+                    </AdminRoute>
                 }
             />
 
