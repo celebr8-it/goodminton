@@ -108,10 +108,40 @@ export class MatchService {
       `
       )
       .eq("tournament_id", tournamentId)
+      .order("match_order", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: true });
 
     if (error) throw error;
     return data || [];
+  }
+
+  /**
+   * Get the next unplayed match in a tournament (for back-to-back entry)
+   * @param {string} tournamentId - Tournament ID
+   * @param {string} excludeMatchId - Match to skip (usually the current one)
+   * @returns {Promise<Object|null>} Next pending match or null
+   */
+  static async getNextPendingMatch(tournamentId, excludeMatchId) {
+    const { data, error } = await supabase
+      .from("matches")
+      .select(
+        `
+        id, stage, round_size,
+        team_a:teams!matches_team_a_id_fkey(id, name),
+        team_b:teams!matches_team_b_id_fkey(id, name)
+      `
+      )
+      .eq("tournament_id", tournamentId)
+      .is("winner_team_id", null)
+      .neq("id", excludeMatchId)
+      // Playoff matches only exist once the league is done, so they come first
+      .order("stage", { ascending: false })
+      .order("match_order", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: true })
+      .limit(1);
+
+    if (error) throw error;
+    return data?.[0] || null;
   }
 
   /**
@@ -274,39 +304,148 @@ export class MatchService {
   }
 
   /**
-   * Validate set score based on tournament rules
-   * @param {number} scoreA - Team A score
-   * @param {number} scoreB - Team B score
-   * @param {Object} tournament - Tournament configuration
-   * @returns {Object} Validation result
+   * Resolve set format for a tournament or standalone match config
+   * @param {Object} config - Tournament (or synthesized) config with scoring_type
+   * @returns {{maxSets: number, winPoints: number, cap: number}}
    */
-  static validateSetScore(scoreA, scoreB, tournament) {
-    const winPoints = tournament.win_points || 21;
-    const minLead = 2;
-
-    const errors = [];
-
-    // Both scores can't be zero (unless just started)
-    if (scoreA === 0 && scoreB === 0) {
-      errors.push("Set score cannot be 0-0");
-    }
-
-    // At least one must reach win points or be ahead by 2
-    const maxScore = Math.max(scoreA, scoreB);
-    const minScore = Math.min(scoreA, scoreB);
-    const lead = maxScore - minScore;
-
-    if (maxScore >= winPoints) {
-      if (lead < minLead && maxScore < 30) {
-        errors.push(`Must win by ${minLead} points or reach 30`);
-      }
-    } else {
-      errors.push(`At least one team must reach ${winPoints} points`);
-    }
+  static getMatchFormat(config) {
+    const scoringType = config?.scoring_type || "standard_21";
+    const isSingleSet =
+      scoringType === "single_21" || scoringType === "single_30";
+    const winPoints =
+      scoringType === "single_30" ? 30 : config?.win_points || 21;
 
     return {
-      isValid: errors.length === 0,
-      errors,
+      maxSets: isSingleSet ? 1 : config?.max_sets || 3,
+      winPoints,
+      // Badminton caps deuce at 30 for 21-point sets
+      cap: winPoints === 21 ? 30 : winPoints,
     };
+  }
+
+  /**
+   * Validate a set score.
+   * Errors block saving; warnings flag scores that break deuce rules but are allowed
+   * (casual games don't always play strict deuce).
+   * @param {number} scoreA - Team A score
+   * @param {number} scoreB - Team B score
+   * @param {Object} config - Tournament configuration
+   * @returns {{isValid: boolean, errors: string[], warnings: string[]}}
+   */
+  static validateSetScore(scoreA, scoreB, config) {
+    const { winPoints, cap } = this.getMatchFormat(config);
+    const errors = [];
+    const warnings = [];
+
+    if (!Number.isInteger(scoreA) || !Number.isInteger(scoreB)) {
+      errors.push("Enter both scores");
+    } else if (scoreA < 0 || scoreB < 0) {
+      errors.push("Scores cannot be negative");
+    } else if (scoreA === scoreB) {
+      errors.push("A set can't end in a tie");
+    } else {
+      const winner = Math.max(scoreA, scoreB);
+      const loser = Math.min(scoreA, scoreB);
+
+      if (winner < winPoints) {
+        errors.push(`Winner needs at least ${winPoints}`);
+      } else {
+        const standard =
+          (winner === winPoints && loser <= winPoints - 2) ||
+          (winner > winPoints &&
+            winner <= cap &&
+            (winner - loser === 2 || (winner === cap && loser === cap - 1)));
+        if (!standard) {
+          warnings.push(
+            winner === winPoints
+              ? `At ${winPoints - 1}-all a set is won by 2 points`
+              : "Unusual deuce score, please double-check"
+          );
+        }
+      }
+    }
+
+    return { isValid: errors.length === 0, errors, warnings };
+  }
+
+  /**
+   * Suggest the opponent's score when the typed score can only be the loser's,
+   * e.g. 15 → 21, 20 → 22 (for 21-point sets). Scores of 21+ are ambiguous.
+   */
+  static suggestOpponentScore(score, config) {
+    const { winPoints, cap } = this.getMatchFormat(config);
+    if (!Number.isInteger(score) || score < 0) return null;
+    if (score <= winPoints - 2) return winPoints;
+    if (score === winPoints - 1 && cap > winPoints) return winPoints + 1;
+    return null;
+  }
+
+  /**
+   * Work out the winning team id from a list of set scores
+   * @param {Array<{score_team_a:number, score_team_b:number, set_number:number}>} sets
+   * @param {Object} config - Tournament configuration
+   * @param {Object} match - Match with team_a_id / team_b_id
+   * @returns {string|null} Winner team ID or null if undecided
+   */
+  static resolveWinnerTeamId(sets, config, match) {
+    const result = this.calculateMatchWinner(sets, config);
+    if (!result?.isComplete) return null;
+    return result.winnerId === "team_a" ? match.team_a_id : match.team_b_id;
+  }
+
+  /**
+   * Save the full result of a match in one go: replaces all set scores
+   * and completes (or re-opens) the match depending on whether a winner is decided.
+   * @param {Object} params
+   * @param {Object} params.match - Current match row
+   * @param {Array<{a:number, b:number}>} params.sets - Set scores in order
+   * @param {Object} params.config - Tournament configuration
+   * @returns {Promise<Object>} Updated match
+   */
+  static async saveMatchResult({ match, sets, config }) {
+    const rows = sets.map((s, i) => ({
+      match_id: match.id,
+      set_number: i + 1,
+      score_team_a: s.a,
+      score_team_b: s.b,
+    }));
+
+    if (rows.length > 0) {
+      const { error: upsertError } = await supabase
+        .from("match_sets")
+        .upsert(rows, { onConflict: "match_id,set_number" });
+      if (upsertError) throw upsertError;
+    }
+
+    // Drop sets that no longer exist (e.g. a 3rd set removed while editing)
+    const { error: deleteError } = await supabase
+      .from("match_sets")
+      .delete()
+      .eq("match_id", match.id)
+      .gt("set_number", rows.length);
+    if (deleteError) throw deleteError;
+
+    const winnerTeamId = this.resolveWinnerTeamId(rows, config, match);
+    const status = winnerTeamId
+      ? MATCH_STATUS.COMPLETED
+      : rows.length > 0
+        ? MATCH_STATUS.IN_PROGRESS
+        : MATCH_STATUS.SCHEDULED;
+
+    const { data, error } = await supabase
+      .from("matches")
+      .update({
+        winner_team_id: winnerTeamId,
+        status,
+        end_time: winnerTeamId
+          ? match.end_time || new Date().toISOString()
+          : null,
+      })
+      .eq("id", match.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
   }
 }

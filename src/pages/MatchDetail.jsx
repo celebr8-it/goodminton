@@ -1,49 +1,97 @@
 /**
  * Match Detail Page
- * Comprehensive match management interface
- * Follows presentation/container component pattern
+ * Quick result entry built for courtside phones:
+ * type the final score of each set, tap save, done. The match completes
+ * itself once the sets decide a winner, and results can be edited later.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useMatch } from '../hooks/useMatch';
-import { useAuth } from '../lib/AuthContext';
 import {
     ArrowLeft,
     Trophy,
-    Play,
     CheckCircle,
     Loader2,
-    Users,
     AlertCircle,
-    Trash2
+    AlertTriangle,
+    Pencil,
+    ChevronRight,
+    Save,
+    X
 } from 'lucide-react';
-import { SetScoreCard } from '../components/ScoreInput';
 import LoadingSpinner from '../components/LoadingSpinner';
 import EmptyState from '../components/EmptyState';
-import Modal, { ModalFooter } from '../components/Modal';
-import { MATCH_STATUS } from '../lib/constants';
+import { MatchService } from '../services/MatchService';
+import { TournamentService, MATCH_STAGE } from '../services/TournamentService';
+import { firstName, teamPlayers } from '../lib/names';
+
+const toNumber = (value) => (value === '' ? null : parseInt(value, 10));
+
+const emptySets = (count) => Array.from({ length: count }, () => ({ a: '', b: '' }));
 
 const MatchDetail = () => {
     const { matchId } = useParams();
     const navigate = useNavigate();
-    const { user } = useAuth();
-    const {
-        match,
-        tournament,
-        loading,
-        error,
-        saving,
-        recordSetScore,
-        completeMatch,
-        startMatch,
-        deleteSet,
-        calculateWinner,
-        validateSetScore
-    } = useMatch(matchId);
+    const { match, tournament, nextMatch, loading, error, saving, saveResult } = useMatch(matchId);
 
-    const [showCompleteModal, setShowCompleteModal] = useState(false);
-    const [validationError, setValidationError] = useState(null);
+    const [editing, setEditing] = useState(false);
+    const [draft, setDraft] = useState([]);
+    const [saveError, setSaveError] = useState(null);
+    const [savedNotice, setSavedNotice] = useState(null);
+    const inputRefs = useRef({});
+
+    const format = useMemo(() => MatchService.getMatchFormat(tournament), [tournament]);
+
+    // Moving to the next match reuses this component, so reset messages
+    useEffect(() => {
+        setSaveError(null);
+        setSavedNotice(null);
+    }, [matchId]);
+
+    // Load saved sets into the form whenever the match changes
+    useEffect(() => {
+        if (!match) return;
+        const saved = [...(match.match_sets || [])].sort((a, b) => a.set_number - b.set_number);
+        const sets = emptySets(format.maxSets);
+        saved.slice(0, format.maxSets).forEach((s, i) => {
+            sets[i] = { a: String(s.score_team_a), b: String(s.score_team_b) };
+        });
+        setDraft(sets);
+        setEditing(!match.winner_team_id);
+    }, [match, format.maxSets]);
+
+    /**
+     * Work out how many set rows to show (set 3 only appears at 1-1),
+     * per-set validation, and what saving would do.
+     */
+    const entry = useMemo(() => {
+        const setsToWin = Math.ceil(format.maxSets / 2);
+        const rows = [];
+        let winsA = 0;
+        let winsB = 0;
+
+        for (let i = 0; i < format.maxSets; i++) {
+            const raw = draft[i] || { a: '', b: '' };
+            const a = toNumber(raw.a);
+            const b = toNumber(raw.b);
+            const filled = a !== null && b !== null;
+            const empty = a === null && b === null;
+            const validation = filled ? MatchService.validateSetScore(a, b, tournament) : null;
+            rows.push({ index: i, a, b, filled, empty, validation });
+
+            if (!filled || !validation.isValid) break;
+            if (a > b) winsA++;
+            else winsB++;
+            if (winsA >= setsToWin || winsB >= setsToWin) break;
+        }
+
+        const blocking = rows.some((r) => (!r.filled && !r.empty) || (r.filled && !r.validation.isValid));
+        const sets = rows.filter((r) => r.filled).map((r) => ({ a: r.a, b: r.b }));
+        const winner = winsA >= setsToWin ? 'a' : winsB >= setsToWin ? 'b' : null;
+
+        return { rows, sets, winner, winsA, winsB, blocking };
+    }, [draft, format.maxSets, tournament]);
 
     if (loading) {
         return <LoadingSpinner />;
@@ -55,654 +103,351 @@ const MatchDetail = () => {
                 icon={AlertCircle}
                 title="Match not found"
                 description={error || "This match doesn't exist"}
-                action={{
-                    label: 'Go Back',
-                    onClick: () => navigate(-1)
-                }}
+                action={{ label: 'Go Back', onClick: () => navigate(-1) }}
             />
         );
     }
 
     const teamA = match.team_a;
     const teamB = match.team_b;
-    const sets = match.match_sets || [];
-
-    // Determine max sets based on scoring type
-    const isSingleSet = tournament?.scoring_type === 'single_21' || tournament?.scoring_type === 'single_30';
-    const maxSets = isSingleSet ? 1 : (tournament?.max_sets || 3);
-    const winPoints = tournament?.scoring_type === 'single_30' ? 30 : (tournament?.win_points || 21);
-
-    const winnerInfo = calculateWinner();
-    const isCompleted = match.status === MATCH_STATUS.COMPLETED;
     const isStandalone = !match.tournament_id && match.group_id;
+    const isCompleted = !!match.winner_team_id;
+    const backPath = isStandalone ? `/groups/${match.group_id}` : `/tournaments/${match.tournament_id}`;
+    const stageLabel = isStandalone
+        ? 'Friendly match'
+        : match.stage === MATCH_STAGE.PLAYOFF
+            ? TournamentService.getRoundLabel(match.round_size)
+            : 'League match';
+    const formatLabel = format.maxSets === 1
+        ? `1 set to ${format.winPoints}`
+        : `Best of ${format.maxSets} · ${format.winPoints} pts`;
+    const teamName = (side) => (side === 'a' ? teamA.name : teamB.name);
+    const savedSets = [...(match.match_sets || [])].sort((a, b) => a.set_number - b.set_number);
 
-    /**
-     * Handle set score save
-     */
-    const handleSetScoreSave = async (setNumber, scoreA, scoreB) => {
-        try {
-            setValidationError(null);
+    // ---------- input handling ----------
 
-            // Validate score
-            const validation = validateSetScore(scoreA, scoreB);
-            if (!validation.isValid) {
-                setValidationError(validation.errors.join('. '));
-                return;
+    const focusField = (setIndex, side) => {
+        setTimeout(() => {
+            const el = inputRefs.current[`${setIndex}${side}`];
+            if (el) {
+                el.focus();
+                el.select();
+            } else {
+                document.activeElement?.blur();
             }
+        }, 0);
+    };
 
-            await recordSetScore(setNumber, scoreA, scoreB);
-        } catch (err) {
-            setValidationError(err.message);
-        }
+    const updateField = (setIndex, side, value) => {
+        setSaveError(null);
+        setSavedNotice(null);
+        setDraft((prev) => prev.map((s, i) => (i === setIndex ? { ...s, [side]: value } : s)));
     };
 
     /**
-     * Handle match completion
+     * Move to the next box. If the opponent's box is empty and the typed score
+     * can only be the loser's (e.g. 15), pre-fill the winner's score (21).
      */
-    const handleCompleteMatch = async () => {
-        if (!winnerInfo?.isComplete) {
-            setValidationError('Match is not complete. Play required sets to determine winner.');
-            return;
+    const advance = (setIndex, side, value) => {
+        const other = side === 'a' ? 'b' : 'a';
+        const current = draft[setIndex] || { a: '', b: '' };
+        if (current[other] === '') {
+            const suggestion = MatchService.suggestOpponentScore(toNumber(value), tournament);
+            if (suggestion !== null) updateField(setIndex, other, String(suggestion));
         }
+        if (side === 'a') focusField(setIndex, 'b');
+        else focusField(setIndex + 1, 'a');
+    };
 
+    const handleChange = (setIndex, side, raw) => {
+        const value = raw.replace(/\D/g, '').slice(0, 2);
+        updateField(setIndex, side, value);
+        if (value.length === 2) advance(setIndex, side, value);
+    };
+
+    const handleKeyDown = (e, setIndex, side) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            advance(setIndex, side, e.currentTarget.value);
+        }
+    };
+
+    // ---------- actions ----------
+
+    const handleSave = async (sets = entry.sets) => {
+        setSaveError(null);
         try {
-            setValidationError(null);
-
-            const winnerId = winnerInfo.winnerId === 'team_a'
-                ? match.team_a_id
-                : match.team_b_id;
-
-            await completeMatch(winnerId);
-            setShowCompleteModal(false);
+            await saveResult(sets);
+            const decided = sets.length > 0 && !!MatchService.resolveWinnerTeamId(
+                sets.map((s, i) => ({ set_number: i + 1, score_team_a: s.a, score_team_b: s.b })),
+                tournament,
+                match
+            );
+            setSavedNotice(
+                sets.length === 0
+                    ? 'Result cleared'
+                    : decided
+                        ? isStandalone ? 'Result saved' : 'Result saved · standings updated'
+                        : 'Progress saved'
+            );
         } catch (err) {
-            setValidationError(err.message);
+            setSaveError(err.message || 'Could not save the result');
         }
     };
 
-    /**
-     * Handle match start
-     */
-    const handleStartMatch = async () => {
-        try {
-            setValidationError(null);
-            await startMatch();
-        } catch (err) {
-            setValidationError(err.message);
-        }
+    const handleClear = () => {
+        if (!confirm('Clear all scores for this match? It will go back to unplayed.')) return;
+        setDraft(emptySets(format.maxSets));
+        handleSave([]);
     };
 
-    /**
-     * Handle set deletion
-     */
-    const handleDeleteSet = async (setNumber) => {
-        if (!confirm(`Delete Set ${setNumber}? This cannot be undone.`)) return;
-
-        try {
-            setValidationError(null);
-            await deleteSet(setNumber);
-        } catch (err) {
-            setValidationError(err.message);
-        }
+    const handleCancelEdit = () => {
+        setSaveError(null);
+        setDraft(() => {
+            const sets = emptySets(format.maxSets);
+            savedSets.slice(0, format.maxSets).forEach((s, i) => {
+                sets[i] = { a: String(s.score_team_a), b: String(s.score_team_b) };
+            });
+            return sets;
+        });
+        setEditing(false);
     };
 
-    /**
-     * Render team info
-     */
-    const renderTeamInfo = (team, isWinner) => (
-        <div style={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '12px',
-            overflow: 'hidden'
-        }}>
-            {/* Team Name with Trophy below if winner */}
-            <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '4px'
-            }}>
-                <h3 style={{
-                    fontSize: '18px',
-                    fontWeight: 700,
-                    color: isWinner ? 'var(--success-color)' : 'var(--text-primary)',
-                    textAlign: 'center'
+    // ---------- rendering ----------
+
+    const renderTeamHeader = (team, side) => {
+        const won = isCompleted && match.winner_team_id === (side === 'a' ? match.team_a_id : match.team_b_id);
+        return (
+            <div style={{ flex: 1, minWidth: 0, textAlign: 'center' }}>
+                <div style={{
+                    fontSize: '17px',
+                    fontWeight: 800,
+                    lineHeight: 1.25,
+                    color: won ? 'var(--success-color)' : 'var(--text-primary)',
+                    wordBreak: 'break-word'
                 }}>
                     {team.name}
-                </h3>
-                {isWinner && (
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                    {teamPlayers(team).map(firstName).join(' & ')}
+                </div>
+                {won && (
                     <div style={{
-                        display: 'flex',
+                        display: 'inline-flex',
                         alignItems: 'center',
                         gap: '4px',
-                        color: 'var(--success-color)',
+                        marginTop: '6px',
                         fontSize: '12px',
-                        fontWeight: 600
+                        fontWeight: 700,
+                        color: 'var(--success-color)'
                     }}>
-                        <Trophy size={14} />
-                        Winner
-                    </div>
-                )}
-            </div>
-
-            {/* Team Members - stacked vertically */}
-            <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '6px',
-                alignItems: 'center',
-                width: '100%'
-            }}>
-                {team.team_members?.map((tm) => (
-                    <div key={tm.player_id} style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        padding: '4px 8px',
-                        borderRadius: '6px',
-                        backgroundColor: 'var(--bg-primary)',
-                        fontSize: '13px',
-                        maxWidth: '100%'
-                    }}>
-                        <div className="avatar avatar-sm" style={{ flexShrink: 0 }}>
-                            {tm.players?.full_name?.charAt(0) || tm.players?.email?.charAt(0) || tm.player?.full_name?.charAt(0) || tm.player?.email?.charAt(0)}
-                        </div>
-                        <span style={{
-                            color: 'var(--text-muted)',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap'
-                        }}>
-                            {tm.players?.full_name || tm.players?.email || tm.player?.full_name || tm.player?.email}
-                        </span>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-
-    /**
-     * Render set summary
-     */
-    const renderSetSummary = () => {
-        if (sets.length === 0) return null;
-
-        const sortedSets = [...sets].sort((a, b) => a.set_number - b.set_number);
-
-        return (
-            <div className="card" style={{ marginBottom: '24px' }}>
-                <h3 style={{
-                    fontSize: '16px',
-                    fontWeight: 600,
-                    marginBottom: '16px',
-                    color: 'var(--text-primary)'
-                }}>
-                    Set Summary
-                </h3>
-
-                <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '12px'
-                }}>
-                    {sortedSets.map((set) => {
-                        const setWinner = set.score_team_a > set.score_team_b ? 'A' : 'B';
-
-                        return (
-                            <div key={set.id} style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                padding: '12px',
-                                borderRadius: '8px',
-                                backgroundColor: 'var(--bg-secondary)'
-                            }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                    <span style={{
-                                        fontSize: '14px',
-                                        fontWeight: 600,
-                                        color: 'var(--text-muted)'
-                                    }}>
-                                        Set {set.set_number}
-                                    </span>
-
-                                    <div style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '8px'
-                                    }}>
-                                        <span style={{
-                                            fontSize: '18px',
-                                            fontWeight: 700,
-                                            color: setWinner === 'A' ? 'var(--success-color)' : 'var(--text-primary)'
-                                        }}>
-                                            {set.score_team_a}
-                                        </span>
-                                        <span style={{ color: 'var(--text-muted)' }}>-</span>
-                                        <span style={{
-                                            fontSize: '18px',
-                                            fontWeight: 700,
-                                            color: setWinner === 'B' ? 'var(--success-color)' : 'var(--text-primary)'
-                                        }}>
-                                            {set.score_team_b}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                {!isCompleted && (
-                                    <button
-                                        onClick={() => handleDeleteSet(set.set_number)}
-                                        disabled={saving}
-                                        style={{
-                                            padding: '6px 12px',
-                                            borderRadius: '6px',
-                                            border: 'none',
-                                            cursor: 'pointer',
-                                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                                            color: '#EF4444',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '6px',
-                                            fontSize: '13px'
-                                        }}
-                                    >
-                                        <Trash2 size={14} />
-                                        Delete
-                                    </button>
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
-
-                {winnerInfo && (
-                    <div style={{
-                        marginTop: '16px',
-                        padding: '12px',
-                        borderRadius: '8px',
-                        backgroundColor: winnerInfo.isComplete
-                            ? 'rgba(34, 197, 94, 0.1)'
-                            : 'rgba(249, 115, 22, 0.1)',
-                        border: `1px solid ${winnerInfo.isComplete ? '#22C55E' : '#F97316'}`
-                    }}>
-                        <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            fontSize: '14px',
-                            fontWeight: 600,
-                            color: winnerInfo.isComplete ? '#22C55E' : '#F97316'
-                        }}>
-                            {winnerInfo.isComplete ? (
-                                <>
-                                    <CheckCircle size={16} />
-                                    <span>
-                                        {winnerInfo.winnerId === 'team_a' ? teamA.name : teamB.name} wins
-                                        {' '}({winnerInfo.setsWon}-{winnerInfo.setsLost})
-                                    </span>
-                                </>
-                            ) : (
-                                <>
-                                    <Play size={16} />
-                                    <span>
-                                        Match in progress - Current: {winnerInfo.setsWon}-{winnerInfo.setsLost}
-                                    </span>
-                                </>
-                            )}
-                        </div>
+                        <Trophy size={13} /> Winner
                     </div>
                 )}
             </div>
         );
     };
 
+    const saveLabel = () => {
+        if (entry.sets.length === 0) return 'Enter the score';
+        if (entry.blocking) return 'Fix the score above';
+        if (entry.winner) {
+            const sets = entry.winner === 'a' ? `${entry.winsA}–${entry.winsB}` : `${entry.winsB}–${entry.winsA}`;
+            return `Save · ${teamName(entry.winner)} wins${format.maxSets > 1 ? ` ${sets}` : ''}`;
+        }
+        return 'Save progress';
+    };
+
     return (
-        <div>
-            {/* Back Button */}
-            <button
-                onClick={() => navigate(isStandalone ? `/groups/${match.group_id}` : `/tournaments/${tournament?.id}`)}
-                className="back-button"
-            >
+        <div style={{ maxWidth: '560px', margin: '0 auto' }}>
+            <button onClick={() => navigate(backPath)} className="back-button">
                 <ArrowLeft size={18} />
-                {isStandalone ? 'Back to Group' : 'Back to Tournament'}
+                {isStandalone ? 'Back to group' : tournament?.name || 'Back to tournament'}
             </button>
 
-            {/* Match Header */}
-            <div className="card section-gap">
-                <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    marginBottom: '24px',
-                    flexWrap: 'wrap',
-                    gap: '12px'
-                }}>
-                    <h1 style={{
-                        fontSize: '24px',
-                        fontWeight: 700,
-                        color: 'var(--text-primary)'
-                    }}>
-                        {isStandalone ? 'Standalone Match' : 'Tournament Match'}
-                    </h1>
-
-                    <span className={
-                        match.status === MATCH_STATUS.COMPLETED ? 'badge badge-success' :
-                            match.status === MATCH_STATUS.IN_PROGRESS ? 'badge badge-primary' :
-                                'badge badge-draft'
-                    }>
-                        {match.status === MATCH_STATUS.COMPLETED ? '✓ Completed' :
-                            match.status === MATCH_STATUS.IN_PROGRESS ? '▶ In Progress' :
-                                '○ Scheduled'}
-                    </span>
+            {/* Matchup header */}
+            <div className="card" style={{ marginBottom: '16px', padding: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                    <span className="eyebrow" style={{ color: 'var(--accent-primary)' }}>{stageLabel}</span>
+                    <span className="eyebrow">{formatLabel}</span>
                 </div>
-
-                {/* Teams Display - Responsive Layout */}
-                <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '16px',
-                    padding: '20px',
-                    borderRadius: '12px',
-                    backgroundColor: 'var(--bg-secondary)'
-                }}>
-                    {/* Team Names Row */}
-                    <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between'
-                    }}>
-                        <div style={{
-                            flex: 1,
-                            textAlign: 'center',
-                            color: isCompleted && winnerInfo?.winnerId === 'team_a' ? 'var(--success-color)' : 'var(--text-primary)'
-                        }}>
-                            <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '4px' }}>
-                                {teamA.name}
-                            </h3>
-                            {isCompleted && winnerInfo?.winnerId === 'team_a' && (
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', fontSize: '12px' }}>
-                                    <Trophy size={12} />
-                                    Winner
-                                </div>
-                            )}
-                        </div>
-
-                        <div style={{
-                            fontSize: '20px',
-                            fontWeight: 700,
-                            color: 'var(--text-muted)',
-                            padding: '0 16px'
-                        }}>
-                            VS
-                        </div>
-
-                        <div style={{
-                            flex: 1,
-                            textAlign: 'center',
-                            color: isCompleted && winnerInfo?.winnerId === 'team_b' ? 'var(--success-color)' : 'var(--text-primary)'
-                        }}>
-                            <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '4px' }}>
-                                {teamB.name}
-                            </h3>
-                            {isCompleted && winnerInfo?.winnerId === 'team_b' && (
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', fontSize: '12px' }}>
-                                    <Trophy size={12} />
-                                    Winner
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Players Row */}
-                    <div style={{
-                        display: 'flex',
-                        gap: '16px'
-                    }}>
-                        {/* Team A Players */}
-                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                            {teamA.team_members?.map((tm) => {
-                                const name = tm.players?.full_name || tm.players?.email || tm.player?.full_name || tm.player?.email;
-                                return (
-                                    <div key={tm.player_id} style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '8px',
-                                        padding: '8px 10px',
-                                        borderRadius: '8px',
-                                        backgroundColor: 'var(--bg-primary)',
-                                        fontSize: '13px'
-                                    }}>
-                                        <div className="avatar avatar-sm" style={{ flexShrink: 0 }}>
-                                            {name?.charAt(0)}
-                                        </div>
-                                        <span style={{ color: 'var(--text-muted)' }}>{name}</span>
-                                    </div>
-                                );
-                            })}
-                        </div>
-
-                        {/* Team B Players */}
-                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                            {teamB.team_members?.map((tm) => {
-                                const name = tm.players?.full_name || tm.players?.email || tm.player?.full_name || tm.player?.email;
-                                return (
-                                    <div key={tm.player_id} style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '8px',
-                                        padding: '8px 10px',
-                                        borderRadius: '8px',
-                                        backgroundColor: 'var(--bg-primary)',
-                                        fontSize: '13px'
-                                    }}>
-                                        <div className="avatar avatar-sm" style={{ flexShrink: 0 }}>
-                                            {name?.charAt(0)}
-                                        </div>
-                                        <span style={{ color: 'var(--text-muted)' }}>{name}</span>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                    {renderTeamHeader(teamA, 'a')}
+                    <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--text-muted)', paddingTop: '2px' }}>VS</div>
+                    {renderTeamHeader(teamB, 'b')}
                 </div>
-
-                {/* Match Info */}
-                <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                    gap: '16px',
-                    marginTop: '20px',
-                    padding: '16px',
-                    borderRadius: '8px',
-                    backgroundColor: 'var(--bg-primary)',
-                    border: '1px solid var(--border-color)'
-                }}>
-                    <div>
-                        <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '4px' }}>
-                            Format
-                        </p>
-                        <p style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                            {tournament?.scoring_type === 'single_21' ? 'Single Set (21 points)' :
-                                tournament?.scoring_type === 'single_30' ? 'Single Set (30 points)' :
-                                    `Best of ${maxSets} to ${winPoints}`}
-                        </p>
-                    </div>
-
-                    <div>
-                        <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '4px' }}>
-                            Sets Played
-                        </p>
-                        <p style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                            {sets.length} / {maxSets}
-                        </p>
-                    </div>
-
-                    {match.start_time && (
-                        <div>
-                            <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '4px' }}>
-                                Started
-                            </p>
-                            <p style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                                {new Date(match.start_time).toLocaleString()}
-                            </p>
-                        </div>
-                    )}
-
-                    {match.end_time && (
-                        <div>
-                            <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '4px' }}>
-                                Completed
-                            </p>
-                            <p style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                                {new Date(match.end_time).toLocaleString()}
-                            </p>
-                        </div>
-                    )}
-                </div>
-
-                {/* Actions */}
-                {!isCompleted && (
-                    <div style={{
-                        display: 'flex',
-                        gap: '12px',
-                        marginTop: '20px',
-                        flexWrap: 'wrap'
-                    }}>
-                        {match.status === MATCH_STATUS.SCHEDULED && (
-                            <button
-                                onClick={handleStartMatch}
-                                disabled={saving}
-                                className="btn-primary"
-                            >
-                                {saving ? <Loader2 className="animate-spin" size={16} /> : <Play size={16} />}
-                                Start Match
-                            </button>
-                        )}
-
-                        {winnerInfo?.isComplete && (
-                            <button
-                                onClick={() => setShowCompleteModal(true)}
-                                disabled={saving}
-                                className="btn-success"
-                            >
-                                <CheckCircle size={16} />
-                                Complete Match
-                            </button>
-                        )}
-                    </div>
-                )}
             </div>
 
-            {/* Validation Error */}
-            {validationError && (
-                <div className="card" style={{
-                    marginBottom: '24px',
-                    padding: '16px',
-                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                    border: '1px solid #EF4444'
-                }}>
-                    <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '12px',
-                        color: '#EF4444'
-                    }}>
-                        <AlertCircle size={20} />
-                        <span style={{ fontSize: '14px', fontWeight: 500 }}>
-                            {validationError}
-                        </span>
-                    </div>
+            {savedNotice && (
+                <div className="notice notice-success" style={{ marginBottom: '16px' }}>
+                    <CheckCircle size={18} style={{ flexShrink: 0 }} />
+                    <span>{savedNotice}</span>
                 </div>
             )}
 
-            {/* Set Summary */}
-            {renderSetSummary()}
-
-            {/* Score Entry */}
-            {!isCompleted && (
-                <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '16px'
-                }}>
-                    <h2 className="section-title">
-                        <Trophy size={20} />
-                        Record Scores
-                    </h2>
-
-                    {Array.from({ length: maxSets }, (_, i) => i + 1).map((setNum) => {
-                        const existingSet = sets.find(s => s.set_number === setNum);
-
-                        return (
-                            <SetScoreCard
-                                key={setNum}
-                                setNumber={setNum}
-                                teamAName={teamA.name}
-                                teamBName={teamB.name}
-                                scoreTeamA={existingSet?.score_team_a || 0}
-                                scoreTeamB={existingSet?.score_team_b || 0}
-                                onSave={(scoreA, scoreB) => handleSetScoreSave(setNum, scoreA, scoreB)}
-                                disabled={saving || isCompleted}
-                                winPoints={winPoints}
-                            />
-                        );
-                    })}
+            {saveError && (
+                <div className="notice notice-error" style={{ marginBottom: '16px' }}>
+                    <AlertCircle size={18} style={{ flexShrink: 0 }} />
+                    <span>{saveError}</span>
                 </div>
             )}
 
-            {/* Complete Match Modal */}
-            <Modal
-                isOpen={showCompleteModal}
-                onClose={() => setShowCompleteModal(false)}
-                title="Complete Match"
-                description="Mark this match as complete? This action cannot be undone."
-            >
-                <div style={{ padding: '20px 0' }}>
-                    <div style={{
-                        padding: '16px',
-                        borderRadius: '8px',
-                        backgroundColor: 'var(--bg-secondary)',
-                        marginBottom: '20px'
-                    }}>
-                        <p style={{
-                            fontSize: '16px',
-                            fontWeight: 600,
-                            color: 'var(--success-color)',
-                            textAlign: 'center'
-                        }}>
-                            Winner: {winnerInfo?.winnerId === 'team_a' ? teamA.name : teamB.name}
-                        </p>
-                        <p style={{
-                            fontSize: '14px',
-                            color: 'var(--text-muted)',
-                            textAlign: 'center',
-                            marginTop: '8px'
-                        }}>
-                            Sets: {winnerInfo?.setsWon} - {winnerInfo?.setsLost}
+            {!editing ? (
+                /* ---------- Result view ---------- */
+                <>
+                    <div className="card" style={{ padding: '16px' }}>
+                        <div className="list-gap">
+                            {savedSets.map((set) => (
+                                <div key={set.set_number} className="score-row">
+                                    <div className={`score-input ${set.score_team_a > set.score_team_b ? 'score-input-win' : ''}`}
+                                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60px', fontSize: '30px' }}>
+                                        {set.score_team_a}
+                                    </div>
+                                    <span className="eyebrow" style={{ minWidth: '40px', textAlign: 'center' }}>
+                                        {format.maxSets > 1 ? `Set ${set.set_number}` : '–'}
+                                    </span>
+                                    <div className={`score-input ${set.score_team_b > set.score_team_a ? 'score-input-win' : ''}`}
+                                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60px', fontSize: '30px' }}>
+                                        {set.score_team_b}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <button
+                            onClick={() => { setSavedNotice(null); setEditing(true); }}
+                            className="btn-secondary btn-block"
+                            style={{ marginTop: '16px' }}
+                        >
+                            <Pencil size={16} />
+                            Edit score
+                        </button>
+                    </div>
+
+                    <div className="action-bar list-gap">
+                        {nextMatch && (
+                            <button
+                                onClick={() => { setSavedNotice(null); navigate(`/matches/${nextMatch.id}`); }}
+                                className="btn-primary btn-lg btn-block"
+                            >
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    Next: {nextMatch.team_a?.name} vs {nextMatch.team_b?.name}
+                                </span>
+                                <ChevronRight size={18} style={{ flexShrink: 0 }} />
+                            </button>
+                        )}
+                        <button onClick={() => navigate(backPath)} className="btn-secondary btn-block">
+                            {isStandalone ? 'Back to group' : 'Standings & matches'}
+                        </button>
+                    </div>
+                </>
+            ) : (
+                /* ---------- Entry view ---------- */
+                <>
+                    <div className="card" style={{ padding: '16px' }}>
+                        <div className="score-row" style={{ marginBottom: '8px' }}>
+                            <span className="eyebrow" style={{ textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{teamA.name}</span>
+                            <span style={{ minWidth: '40px' }} />
+                            <span className="eyebrow" style={{ textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{teamB.name}</span>
+                        </div>
+
+                        <div className="list-gap" style={{ gap: '14px' }}>
+                            {entry.rows.map((row) => {
+                                const raw = draft[row.index] || { a: '', b: '' };
+                                const valid = row.filled && row.validation.isValid;
+                                return (
+                                    <div key={row.index}>
+                                        <div className="score-row">
+                                            <input
+                                                ref={(el) => { inputRefs.current[`${row.index}a`] = el; }}
+                                                className={`score-input ${valid && row.a > row.b ? 'score-input-win' : ''}`}
+                                                type="text"
+                                                inputMode="numeric"
+                                                pattern="[0-9]*"
+                                                enterKeyHint="next"
+                                                autoComplete="off"
+                                                placeholder="0"
+                                                aria-label={`${teamA.name} set ${row.index + 1}`}
+                                                value={raw.a}
+                                                onFocus={(e) => e.target.select()}
+                                                onChange={(e) => handleChange(row.index, 'a', e.target.value)}
+                                                onKeyDown={(e) => handleKeyDown(e, row.index, 'a')}
+                                                disabled={saving}
+                                            />
+                                            <span className="eyebrow" style={{ minWidth: '40px', textAlign: 'center' }}>
+                                                {format.maxSets > 1 ? `Set ${row.index + 1}` : '–'}
+                                            </span>
+                                            <input
+                                                ref={(el) => { inputRefs.current[`${row.index}b`] = el; }}
+                                                className={`score-input ${valid && row.b > row.a ? 'score-input-win' : ''}`}
+                                                type="text"
+                                                inputMode="numeric"
+                                                pattern="[0-9]*"
+                                                enterKeyHint={row.index + 1 < format.maxSets ? 'next' : 'done'}
+                                                autoComplete="off"
+                                                placeholder="0"
+                                                aria-label={`${teamB.name} set ${row.index + 1}`}
+                                                value={raw.b}
+                                                onFocus={(e) => e.target.select()}
+                                                onChange={(e) => handleChange(row.index, 'b', e.target.value)}
+                                                onKeyDown={(e) => handleKeyDown(e, row.index, 'b')}
+                                                disabled={saving}
+                                            />
+                                        </div>
+                                        {row.filled && row.validation.errors.length > 0 && (
+                                            <div className="notice notice-error" style={{ marginTop: '8px', padding: '8px 12px', fontSize: '13px' }}>
+                                                <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                                                {row.validation.errors[0]}
+                                            </div>
+                                        )}
+                                        {row.filled && row.validation.isValid && row.validation.warnings.length > 0 && (
+                                            <div className="notice notice-warning" style={{ marginTop: '8px', padding: '8px 12px', fontSize: '13px' }}>
+                                                <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+                                                {row.validation.warnings[0]}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        <p style={{ fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center', marginTop: '14px' }}>
+                            Type the loser's points and we fill in {format.winPoints} for the winner.
+                            {format.maxSets > 1 && ' A deciding set appears automatically at 1–1.'}
                         </p>
                     </div>
-                </div>
 
-                <ModalFooter>
-                    <button
-                        onClick={() => setShowCompleteModal(false)}
-                        className="btn-secondary"
-                        disabled={saving}
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        onClick={handleCompleteMatch}
-                        className="btn-primary"
-                        disabled={saving}
-                    >
-                        {saving ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle size={16} />}
-                        {saving ? 'Completing...' : 'Confirm Complete'}
-                    </button>
-                </ModalFooter>
-            </Modal>
+                    <div className="action-bar">
+                        <button
+                            onClick={() => handleSave()}
+                            disabled={saving || entry.sets.length === 0 || entry.blocking}
+                            className={`${entry.winner && !entry.blocking ? 'btn-success' : 'btn-primary'} btn-lg btn-block`}
+                        >
+                            {saving ? <Loader2 className="animate-spin" size={18} /> : entry.winner ? <Trophy size={18} /> : <Save size={18} />}
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {saving ? 'Saving…' : saveLabel()}
+                            </span>
+                        </button>
+
+                        {isCompleted && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
+                                <button onClick={handleClear} className="btn-link" disabled={saving}>
+                                    Clear result
+                                </button>
+                                <button onClick={handleCancelEdit} className="btn-link" disabled={saving}>
+                                    <X size={14} style={{ display: 'inline', verticalAlign: '-2px' }} /> Cancel edit
+                                </button>
+                            </div>
+                        )}
+                        {!isCompleted && savedSets.length > 0 && (
+                            <div style={{ textAlign: 'center', marginTop: '6px' }}>
+                                <button onClick={handleClear} className="btn-link" disabled={saving}>
+                                    Clear scores
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </>
+            )}
         </div>
     );
 };

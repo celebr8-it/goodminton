@@ -4,9 +4,10 @@
  * Encapsulates tournament logic and side effects
  */
 
-import { useState, useEffect, useCallback } from "react";
-import { TournamentService } from "../services/TournamentService";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { TournamentService, MATCH_STAGE } from "../services/TournamentService";
 import { MatchService } from "../services/MatchService";
+import { TOURNAMENT_STATUS } from "../lib/constants";
 
 /**
  * Custom hook for managing tournament state and operations
@@ -23,32 +24,45 @@ export function useTournament(tournamentId) {
   const [actionLoading, setActionLoading] = useState(false);
 
   /**
-   * Fetch all tournament data
+   * Fetch all tournament data. Only the first load shows the full-page spinner,
+   * later refreshes update in place.
    */
   const fetchTournamentData = useCallback(async () => {
     if (!tournamentId) return;
 
     try {
-      setLoading(true);
       setError(null);
 
-      const [tournamentData, teamsData, matchesData] = await Promise.all([
+      let [tournamentData, teamsData, matchesData] = await Promise.all([
         TournamentService.getTournamentById(tournamentId),
         TournamentService.getTournamentTeams(tournamentId),
         MatchService.getMatchesByTournament(tournamentId),
       ]);
 
+      // Self-heal the bracket in case a result was saved by someone
+      // who couldn't create the next round
+      if (matchesData.some((m) => m.stage === MATCH_STAGE.PLAYOFF)) {
+        try {
+          const { changed } = await TournamentService.syncPlayoffs(tournamentId);
+          if (changed) {
+            [tournamentData, matchesData] = await Promise.all([
+              TournamentService.getTournamentById(tournamentId),
+              MatchService.getMatchesByTournament(tournamentId),
+            ]);
+          }
+        } catch (syncErr) {
+          console.error("Error syncing playoffs:", syncErr);
+        }
+      }
+
       setTournament(tournamentData);
       setTeams(teamsData);
       setMatches(matchesData);
 
-      // Calculate standings if tournament is active
-      if (
-        tournamentData.status === "active" ||
-        tournamentData.status === "completed"
-      ) {
+      if (tournamentData.status !== TOURNAMENT_STATUS.DRAFT) {
         const standingsData = await TournamentService.calculateStandings(
-          tournamentId
+          tournamentId,
+          { teams: teamsData, matches: matchesData }
         );
         setStandings(standingsData);
       }
@@ -61,48 +75,69 @@ export function useTournament(tournamentId) {
   }, [tournamentId]);
 
   /**
-   * Start tournament
+   * Wrap an action with loading state and a data refresh
    */
-  const startTournament = useCallback(async () => {
-    try {
-      setActionLoading(true);
-      setError(null);
+  const runAction = useCallback(
+    async (action) => {
+      try {
+        setActionLoading(true);
+        setError(null);
+        const result = await action();
+        await fetchTournamentData();
+        return result;
+      } catch (err) {
+        console.error("Tournament action failed:", err);
+        setError(err.message);
+        throw err;
+      } finally {
+        setActionLoading(false);
+      }
+    },
+    [fetchTournamentData]
+  );
 
-      const result = await TournamentService.startTournament(tournamentId);
+  const startTournament = useCallback(
+    () => runAction(() => TournamentService.startTournament(tournamentId)),
+    [runAction, tournamentId]
+  );
 
-      // Refresh data
-      await fetchTournamentData();
+  const completeTournament = useCallback(
+    () => runAction(() => TournamentService.completeTournament(tournamentId)),
+    [runAction, tournamentId]
+  );
 
-      return result;
-    } catch (err) {
-      console.error("Error starting tournament:", err);
-      setError(err.message);
-      throw err;
-    } finally {
-      setActionLoading(false);
-    }
-  }, [tournamentId, fetchTournamentData]);
+  const startPlayoffs = useCallback(
+    (size) =>
+      runAction(() => TournamentService.generatePlayoffs(tournamentId, size)),
+    [runAction, tournamentId]
+  );
 
   /**
-   * Complete tournament
+   * Derived phase info used to drive the UI
    */
-  const completeTournament = useCallback(async () => {
-    try {
-      setActionLoading(true);
-      setError(null);
+  const phase = useMemo(() => {
+    const leagueMatches = matches.filter((m) => m.stage !== MATCH_STAGE.PLAYOFF);
+    const playoffMatches = matches.filter((m) => m.stage === MATCH_STAGE.PLAYOFF);
+    const leagueDone = leagueMatches.filter((m) => m.winner_team_id).length;
+    const final = playoffMatches.find((m) => m.round_size === 2);
+    const currentRound = playoffMatches.length
+      ? Math.min(...playoffMatches.map((m) => m.round_size))
+      : null;
 
-      await TournamentService.completeTournament(tournamentId);
-
-      // Refresh data
-      await fetchTournamentData();
-    } catch (err) {
-      console.error("Error completing tournament:", err);
-      setError(err.message);
-      throw err;
-    } finally {
-      setActionLoading(false);
-    }
-  }, [tournamentId, fetchTournamentData]);
+    return {
+      leagueMatches,
+      playoffMatches,
+      leagueTotal: leagueMatches.length,
+      leagueDone,
+      leaguePending: leagueMatches.length - leagueDone,
+      leagueComplete:
+        leagueMatches.length > 0 && leagueDone === leagueMatches.length,
+      hasPlayoffs: playoffMatches.length > 0,
+      currentRound,
+      championTeamId: final?.winner_team_id || null,
+      seeds: TournamentService.getPlayoffSeeds(matches),
+    };
+  }, [matches]);
 
   /**
    * Get tournament statistics
@@ -127,7 +162,17 @@ export function useTournament(tournamentId) {
 
   // Initial fetch
   useEffect(() => {
+    setLoading(true);
     fetchTournamentData();
+  }, [fetchTournamentData]);
+
+  // Pick up results entered on other phones when coming back to this tab
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") fetchTournamentData();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, [fetchTournamentData]);
 
   return {
@@ -135,11 +180,13 @@ export function useTournament(tournamentId) {
     teams,
     matches,
     standings,
+    phase,
     loading,
     error,
     actionLoading,
     startTournament,
     completeTournament,
+    startPlayoffs,
     getStatistics,
     refetch: fetchTournamentData,
   };
