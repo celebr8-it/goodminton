@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { ArrowLeft, Users, Loader2 } from 'lucide-react';
+import ScoringFormatPicker from '../components/ScoringFormatPicker';
+import { DEFAULT_FORMAT } from '../lib/scoringFormat';
 import { GroupService } from '../services/GroupService';
 import { MatchService } from '../services/MatchService';
 import { supabase } from '../lib/supabase';
@@ -17,7 +19,7 @@ const CreateMatch = () => {
 
     const [teamAId, setTeamAId] = useState('');
     const [teamBId, setTeamBId] = useState('');
-    const [scoringType, setScoringType] = useState('standard_21');
+    const [format, setFormat] = useState(DEFAULT_FORMAT);
 
     useEffect(() => {
         fetchData();
@@ -63,13 +65,14 @@ const CreateMatch = () => {
                 groupId,
                 teamAId,
                 teamBId,
-                scoringType
+                scoringType: format.scoringType,
+                custom: format.custom
             });
 
             navigate(`/matches/${match.id}`);
         } catch (err) {
             console.error('Error creating match:', err);
-            alert('Failed to create match');
+            alert(err.message || 'Failed to create match');
         } finally {
             setCreating(false);
         }
@@ -150,20 +153,9 @@ const CreateMatch = () => {
 
                     <div style={{ marginBottom: '24px' }}>
                         <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, marginBottom: '8px', color: 'var(--text-primary)' }}>
-                            Scoring Type
+                            Scoring
                         </label>
-                        <select
-                            className="select-field"
-                            value={scoringType}
-                            onChange={(e) => setScoringType(e.target.value)}
-                        >
-                            <option value="standard_21">Standard (Best of 3, 21 points)</option>
-                            <option value="single_21">Single Set (21 points)</option>
-                            <option value="single_30">Single Set (30 points)</option>
-                        </select>
-                        <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px' }}>
-                            Choose the scoring format for this match
-                        </p>
+                        <ScoringFormatPicker value={format} onChange={setFormat} />
                     </div>
 
                     <div style={{

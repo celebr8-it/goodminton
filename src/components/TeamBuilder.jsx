@@ -29,8 +29,10 @@ const LISTS = [
 
 const OTHER = { strong: 'weak', weak: 'strong' };
 
-const TeamBuilder = ({ groupId, members, existingTeamCount, busy, onCreate }) => {
+const TeamBuilder = ({ groupId, members, teams = [], busy, onCreate }) => {
     const [buckets, setBuckets] = useState(() => loadBuckets(groupId));
+    // Keep teams that were already made and only pair the remaining players
+    const [keepExisting, setKeepExisting] = useState(true);
     const [mode, setMode] = useState('balanced');
     const [preview, setPreview] = useState(null);
     const [drag, setDrag] = useState(null);
@@ -42,17 +44,27 @@ const TeamBuilder = ({ groupId, members, existingTeamCount, busy, onCreate }) =>
 
     const membersById = useMemo(() => new Map(members.map(m => [m.id, m])), [members]);
 
+    const keeping = keepExisting && teams.length > 0;
+
+    // Players already in a kept team are left out of the buckets (their rank is
+    // still remembered for next time)
+    const lockedIds = useMemo(
+        () => new Set(keeping ? teams.flatMap(t => t.team_members?.map(tm => tm.player_id) || []) : []),
+        [keeping, teams]
+    );
+
     // Drop players who left the group; everyone not in a bucket is in the pool
     const lists = useMemo(() => {
-        const strong = buckets.strong.filter(id => membersById.has(id));
-        const weak = buckets.weak.filter(id => membersById.has(id));
+        const available = (id) => membersById.has(id) && !lockedIds.has(id);
+        const strong = buckets.strong.filter(available);
+        const weak = buckets.weak.filter(available);
         const placed = new Set([...strong, ...weak]);
         const pool = members
-            .filter(m => !placed.has(m.id))
+            .filter(m => !placed.has(m.id) && !lockedIds.has(m.id))
             .sort((a, b) => playerDisplayName(a).localeCompare(playerDisplayName(b)))
             .map(m => m.id);
         return { strong, weak, pool };
-    }, [buckets, members, membersById]);
+    }, [buckets, members, membersById, lockedIds]);
 
     useEffect(() => {
         saveBuckets(groupId, buckets);
@@ -166,8 +178,8 @@ const TeamBuilder = ({ groupId, members, existingTeamCount, busy, onCreate }) =>
     };
 
     const create = () => {
-        if (existingTeamCount > 0 && !confirm(`Replace the ${existingTeamCount} existing teams?`)) return;
-        onCreate(preview.pairs);
+        if (!keeping && teams.length > 0 && !confirm(`Delete the ${teams.length} existing teams and use these instead?`)) return;
+        onCreate(preview.pairs, { replace: !keeping });
     };
 
     const bucketOf = (id) => (lists.strong.includes(id) ? 1 : 2);
@@ -262,6 +274,27 @@ const TeamBuilder = ({ groupId, members, existingTeamCount, busy, onCreate }) =>
                 Each team gets one player from each bucket, so the teams come out even. Buckets are saved on this phone for next time.
             </p>
 
+            {teams.length > 0 && !preview && (
+                <label className="toggle-row bucket" style={{ marginBottom: '12px', background: 'transparent' }}>
+                    <span>
+                        <span className="format-label" style={{ marginBottom: 0 }}>
+                            Keep the {teams.length} existing team{teams.length > 1 ? 's' : ''}
+                        </span>
+                        <span className="format-hint">
+                            {keeping
+                                ? `Only players who aren't in a team yet are paired (${lockedIds.size} already placed).`
+                                : 'Existing teams will be deleted and everyone is paired again.'}
+                        </span>
+                    </span>
+                    <input
+                        type="checkbox"
+                        className="toggle"
+                        checked={keepExisting}
+                        onChange={(e) => { setKeepExisting(e.target.checked); setPreview(null); }}
+                    />
+                </label>
+            )}
+
             {!preview ? (
                 <>
                     <div className="list-gap" style={{ gap: '12px' }}>
@@ -282,7 +315,7 @@ const TeamBuilder = ({ groupId, members, existingTeamCount, busy, onCreate }) =>
                         </button>
                     </div>
 
-                    {placedCount >= 4 && (diff > 1 || placedCount % 2 === 1) && (
+                    {placedCount >= 2 && (diff > 1 || placedCount % 2 === 1) && (
                         <div className="notice notice-warning" style={{ marginTop: '12px', fontSize: '13px' }}>
                             <AlertTriangle size={16} style={{ flexShrink: 0 }} />
                             <span>
@@ -297,14 +330,22 @@ const TeamBuilder = ({ groupId, members, existingTeamCount, busy, onCreate }) =>
                         className="btn-primary btn-lg btn-block"
                         style={{ marginTop: '14px' }}
                         onClick={generate}
-                        disabled={placedCount < 4}
+                        disabled={placedCount < 2}
                     >
                         {mode === 'random' ? <Shuffle size={18} /> : <Scale size={18} />}
-                        {placedCount < 4 ? 'Place at least 4 players' : `Generate ${Math.floor(placedCount / 2)} teams`}
+                        {placedCount < 2
+                            ? (keeping && members.length - lockedIds.size < 2 ? 'Everyone is already in a team' : 'Place at least 2 players')
+                            : `Generate ${Math.floor(placedCount / 2)} ${keeping ? 'more ' : ''}team${placedCount >= 4 ? 's' : ''}`}
                     </button>
                 </>
             ) : (
                 <>
+                    {keeping && (
+                        <div className="notice notice-success" style={{ marginBottom: '12px', fontSize: '13px' }}>
+                            <Users size={16} style={{ flexShrink: 0 }} />
+                            <span>Adds {preview.pairs.length} team{preview.pairs.length > 1 ? 's' : ''} to your {teams.length} existing team{teams.length > 1 ? 's' : ''}.</span>
+                        </div>
+                    )}
                     <div className="list-gap" style={{ gap: '8px' }}>
                         {preview.pairs.map(([a, b], i) => {
                             const same = bucketOf(a.id) === bucketOf(b.id);
@@ -340,7 +381,7 @@ const TeamBuilder = ({ groupId, members, existingTeamCount, busy, onCreate }) =>
                     <div className="list-gap" style={{ marginTop: '14px' }}>
                         <button type="button" className="btn-success btn-lg btn-block" onClick={create} disabled={busy}>
                             {busy ? <Loader2 className="animate-spin" size={18} /> : <Users size={18} />}
-                            {busy ? 'Creating…' : `Create these ${preview.pairs.length} teams`}
+                            {busy ? 'Creating…' : `${keeping ? 'Add' : 'Create'} these ${preview.pairs.length} team${preview.pairs.length > 1 ? 's' : ''}`}
                         </button>
                         <div style={{ display: 'grid', gridTemplateColumns: mode === 'random' ? '1fr 1fr' : '1fr', gap: '10px' }}>
                             {mode === 'random' && (

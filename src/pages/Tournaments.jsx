@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { TournamentService } from '../services/TournamentService';
+import { formatShortLabel } from '../lib/scoringFormat';
 import { Trophy, Loader2, Users } from 'lucide-react';
 
 const Tournaments = () => {
@@ -91,7 +92,7 @@ const Tournaments = () => {
 
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '12px', borderTop: '1px solid var(--border-color)' }}>
                                 <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                                    {tournament.scoring_type?.replace('_', ' ')}
+                                    {formatShortLabel(tournament)}
                                 </span>
                                 <span className={tournament.status === 'active' ? 'badge badge-success' : tournament.status === 'completed' ? 'badge badge-draft' : 'badge badge-primary'}>
                                     {tournament.status === 'active' ? '🟢 Active' : tournament.status === 'completed' ? '✅ Completed' : '📝 Draft'}

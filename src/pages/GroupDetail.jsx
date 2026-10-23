@@ -5,6 +5,7 @@ import { ArrowLeft, UserPlus, Trophy, Copy, Check, Plus, Users, Crown, Loader2, 
 import Modal, { ModalFooter } from '../components/Modal';
 import { GroupService } from '../services/GroupService';
 import { UserService } from '../services/UserService';
+import { formatShortLabel } from '../lib/scoringFormat';
 import { supabase } from '../lib/supabase';
 
 const GroupDetail = () => {
@@ -306,7 +307,7 @@ const GroupDetail = () => {
                                         {tournament.name}
                                     </h3>
                                     <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                                        Scoring: {tournament.scoring_type?.replace('_', ' ')}
+                                        {formatShortLabel(tournament)}
                                     </p>
                                 </div>
                                 <span className={tournament.status === 'active' ? 'badge badge-success' : 'badge badge-draft'}>

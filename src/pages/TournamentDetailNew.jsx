@@ -31,7 +31,8 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import EmptyState from '../components/EmptyState';
 import MatchCard from '../components/MatchCard';
 import TeamBuilder from '../components/TeamBuilder';
-import { TOURNAMENT_STATUS, SCORING_TYPE_LABELS } from '../lib/constants';
+import { TOURNAMENT_STATUS } from '../lib/constants';
+import { formatShortLabel } from '../lib/scoringFormat';
 import { autoTeamName, firstName, playerDisplayName, teamPlayers } from '../lib/names';
 
 const ROUND_PLURAL = { 2: 'Final', 4: 'Semi-finals', 8: 'Quarter-finals' };
@@ -108,7 +109,7 @@ const TournamentDetailPage = () => {
     }
 
     const isDraft = tournament.status === TOURNAMENT_STATUS.DRAFT;
-    const builderOpen = (showBuilder ?? teams.length === 0) && members.length >= 4;
+    const builderOpen = (showBuilder ?? teams.length === 0) && members.length >= 2;
     const isActive = tournament.status === TOURNAMENT_STATUS.ACTIVE;
     const isCompleted = tournament.status === TOURNAMENT_STATUS.COMPLETED;
 
@@ -158,10 +159,10 @@ const TournamentDetailPage = () => {
         }
     };
 
-    const handleCreatePairs = (pairs) => runWithError(async () => {
+    const handleCreatePairs = (pairs, options) => runWithError(async () => {
         setGenerating(true);
         try {
-            await TournamentService.createTeamsFromPairs(tournamentId, pairs);
+            await TournamentService.createTeamsFromPairs(tournamentId, pairs, options);
             await refetch();
             setShowBuilder(false);
         } finally {
@@ -552,7 +553,7 @@ const TournamentDetailPage = () => {
                     </button>
                     <button
                         onClick={() => setShowBuilder(open => !(open ?? teams.length === 0))}
-                        disabled={members.length < 4}
+                        disabled={members.length < 2}
                         className={builderOpen ? 'btn-secondary choice-active' : 'btn-secondary'}
                     >
                         <Shuffle size={16} />
@@ -565,7 +566,7 @@ const TournamentDetailPage = () => {
                 <TeamBuilder
                     groupId={tournament.group_id}
                     members={members}
-                    existingTeamCount={teams.length}
+                    teams={teams}
                     busy={generating}
                     onCreate={handleCreatePairs}
                 />
@@ -633,7 +634,7 @@ const TournamentDetailPage = () => {
                             {tournament.name}
                         </h1>
                         <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginTop: '4px' }}>
-                            {SCORING_TYPE_LABELS[tournament.scoring_type] || tournament.scoring_type} · {teams.length} teams
+                            {formatShortLabel(tournament)} · {teams.length} teams
                         </p>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>

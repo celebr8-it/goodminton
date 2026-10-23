@@ -4,6 +4,8 @@ import { useAuth } from '../lib/AuthContext';
 import { GroupService } from '../services/GroupService';
 import { TournamentService } from '../services/TournamentService';
 import { ArrowLeft, Trophy, Loader2 } from 'lucide-react';
+import ScoringFormatPicker from '../components/ScoringFormatPicker';
+import { DEFAULT_FORMAT } from '../lib/scoringFormat';
 
 const CreateTournament = () => {
     const { groupId } = useParams();
@@ -15,7 +17,7 @@ const CreateTournament = () => {
     const [creating, setCreating] = useState(false);
 
     const [tournamentName, setTournamentName] = useState('');
-    const [scoringType, setScoringType] = useState('standard_21');
+    const [format, setFormat] = useState(DEFAULT_FORMAT);
 
     useEffect(() => {
         fetchGroupData();
@@ -44,13 +46,14 @@ const CreateTournament = () => {
             const tournament = await TournamentService.createTournament({
                 groupId,
                 name: tournamentName,
-                scoringType
+                scoringType: format.scoringType,
+                custom: format.custom
             });
 
             navigate(`/tournaments/${tournament.id}`);
         } catch (err) {
             console.error('Error creating tournament:', err);
-            alert('Failed to create tournament');
+            alert(err.message || 'Failed to create tournament');
         } finally {
             setCreating(false);
         }
@@ -109,21 +112,9 @@ const CreateTournament = () => {
 
                     <div style={{ marginBottom: '24px' }}>
                         <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, marginBottom: '8px', color: 'var(--text-primary)' }}>
-                            Scoring Type
+                            Scoring
                         </label>
-                        <select
-                            className="select-field"
-                            value={scoringType}
-                            onChange={(e) => setScoringType(e.target.value)}
-                        >
-                            <option value="standard_21">Standard (Best of 3 to 21 points)</option>
-                            <option value="single_21">Single Set (21 points)</option>
-                            <option value="single_30">Single Set (30 points)</option>
-                            <option value="custom">Custom Scoring</option>
-                        </select>
-                        <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px' }}>
-                            Standard badminton scoring is best of 3 sets, first to 21 points with deuce at 20-20.
-                        </p>
+                        <ScoringFormatPicker value={format} onChange={setFormat} />
                     </div>
 
                     <div style={{

@@ -25,6 +25,7 @@ import EmptyState from '../components/EmptyState';
 import { MatchService } from '../services/MatchService';
 import { TournamentService, MATCH_STAGE } from '../services/TournamentService';
 import { firstName, teamPlayers } from '../lib/names';
+import { describeSetRule, formatShortLabel } from '../lib/scoringFormat';
 
 const toNumber = (value) => (value === '' ? null : parseInt(value, 10));
 
@@ -118,9 +119,7 @@ const MatchDetail = () => {
         : match.stage === MATCH_STAGE.PLAYOFF
             ? TournamentService.getRoundLabel(match.round_size)
             : 'League match';
-    const formatLabel = format.maxSets === 1
-        ? `1 set to ${format.winPoints}`
-        : `Best of ${format.maxSets} · ${format.winPoints} pts`;
+    const formatLabel = formatShortLabel(tournament);
     const teamName = (side) => (side === 'a' ? teamA.name : teamB.name);
     const savedSets = [...(match.match_sets || [])].sort((a, b) => a.set_number - b.set_number);
 
@@ -410,10 +409,22 @@ const MatchDetail = () => {
                             })}
                         </div>
 
-                        <p style={{ fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center', marginTop: '14px' }}>
-                            Type the loser's points and we fill in {format.winPoints} for the winner.
-                            {format.maxSets > 1 && ' A deciding set appears automatically at 1–1.'}
-                        </p>
+                        <ul className="rule-hints">
+                            <li><strong>{describeSetRule(tournament)}.</strong></li>
+                            <li>
+                                {format.deuce
+                                    ? `Type the losing score: up to ${format.winPoints - 2} fills in ${format.winPoints}, ${format.winPoints - 1} fills in ${format.winPoints + 1}.`
+                                    : `Type the losing score and we fill in ${format.winPoints} for the winner.`}
+                            </li>
+                            {format.maxSets > 1 && (
+                                <li>
+                                    First to {format.setsToWin} sets wins.{' '}
+                                    {format.maxSets === 3
+                                        ? 'Set 3 appears only at 1–1.'
+                                        : 'More sets appear only while the match is still undecided.'}
+                                </li>
+                            )}
+                        </ul>
                     </div>
 
                     <div className="action-bar">

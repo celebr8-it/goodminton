@@ -8,6 +8,7 @@ import { supabase } from "../lib/supabase";
 import { TOURNAMENT_STATUS, SCORING_TYPES } from "../lib/constants";
 import { MatchService } from "./MatchService";
 import { autoTeamName } from "../lib/names";
+import { formatColumns, explainMissingFormatColumns } from "../lib/scoringFormat";
 
 export const MATCH_STAGE = {
   LEAGUE: "league",
@@ -119,9 +120,10 @@ export class TournamentService {
    * @param {string} params.groupId - Group ID
    * @param {string} params.name - Tournament name
    * @param {string} params.scoringType - Scoring type
+   * @param {Object} params.custom - For custom scoring: { winPoints, maxSets, deuce, cap }
    * @returns {Promise<Object>} Created tournament
    */
-  static async createTournament({ groupId, name, scoringType = "standard_21" }) {
+  static async createTournament({ groupId, name, scoringType = "standard_21", custom }) {
     const { data, error } = await supabase
       .from("tournaments")
       .insert([
@@ -130,12 +132,13 @@ export class TournamentService {
           name: name,
           scoring_type: scoringType,
           status: TOURNAMENT_STATUS.DRAFT,
+          ...formatColumns(scoringType, custom),
         },
       ])
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) throw explainMissingFormatColumns(error);
     return data;
   }
 
@@ -245,13 +248,14 @@ export class TournamentService {
   }
 
   /**
-   * Replace all teams in a tournament with the given player pairs
+   * Create a team for each player pair
    * @param {string} tournamentId - Tournament ID
    * @param {Array<[Object, Object]>} pairs - Player pairs
+   * @param {Object} options - { replace: delete existing teams first (default true) }
    * @returns {Promise<Array>} Created teams
    */
-  static async createTeamsFromPairs(tournamentId, pairs) {
-    await this.deleteAllTeams(tournamentId);
+  static async createTeamsFromPairs(tournamentId, pairs, { replace = true } = {}) {
+    if (replace) await this.deleteAllTeams(tournamentId);
 
     const createdTeams = [];
     for (const pair of pairs) {

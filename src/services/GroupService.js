@@ -4,6 +4,8 @@
  */
 
 import { supabase } from "../lib/supabase";
+import { SCORING_TYPES } from "../lib/constants";
+import { customFormatColumns, explainMissingFormatColumns } from "../lib/scoringFormat";
 
 export class GroupService {
   /**
@@ -190,6 +192,7 @@ export class GroupService {
     teamAId,
     teamBId,
     scoringType = "standard_21",
+    custom,
   }) {
     const { data, error } = await supabase
       .from("matches")
@@ -201,12 +204,14 @@ export class GroupService {
           tournament_id: null, // No tournament
           status: "scheduled",
           scoring_type: scoringType,
+          // Presets are implied by scoring_type; only custom needs the extra columns
+          ...(scoringType === SCORING_TYPES.CUSTOM ? customFormatColumns(custom) : {}),
         },
       ])
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) throw explainMissingFormatColumns(error);
     return data;
   }
 
