@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { Mail, Lock, Loader2, Trophy, ChevronRight } from 'lucide-react';
+import { Mail, Lock, Loader2, ChevronRight } from 'lucide-react';
+import goodmintonIcon from '../assets/goodminton-icon.svg';
 
 export default function AuthPage() {
     const [email, setEmail] = useState('');
@@ -135,14 +136,7 @@ export default function AuthPage() {
                         transform: `translate(${mousePosition.x * -5}px, ${mousePosition.y * -5}px)`,
                         transition: 'transform 0.3s ease-out'
                     }}>
-                        <div style={{
-                            padding: '16px',
-                            borderRadius: '20px',
-                            background: 'linear-gradient(135deg, #6366F1, #4F46E5)',
-                            boxShadow: '0 20px 40px rgba(99, 102, 241, 0.4)'
-                        }}>
-                            <Trophy size={36} color="white" />
-                        </div>
+                        <img src={goodmintonIcon} alt="" width="56" height="56" />
                     </div>
                     <h1 style={{
                         fontSize: '48px',

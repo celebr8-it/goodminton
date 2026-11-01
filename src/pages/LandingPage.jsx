@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Trophy, Users, Shuffle, BarChart3, ChevronRight, Zap, Target, Award } from 'lucide-react';
+import { Users, Shuffle, BarChart3, ChevronRight, Zap, Target, Award } from 'lucide-react';
+import goodmintonIcon from '../assets/goodminton-icon.svg';
 
 const LandingPage = () => {
     const navigate = useNavigate();
@@ -136,13 +137,7 @@ const LandingPage = () => {
                     zIndex: 20
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div style={{
-                            padding: '10px',
-                            borderRadius: '12px',
-                            background: 'linear-gradient(135deg, #6366F1, #4F46E5)'
-                        }}>
-                            <Trophy size={22} color="white" />
-                        </div>
+                        <img src={goodmintonIcon} alt="" width="32" height="32" />
                         <span style={{ fontSize: '20px', fontWeight: 700, color: '#F8FAFC' }}>
                             Goodminton
                         </span>

@@ -5,6 +5,7 @@ import { useTheme } from '../lib/ThemeContext';
 import { useAuth } from '../lib/AuthContext';
 import { supabase } from '../lib/supabase';
 import { UserService } from '../services/UserService';
+import goodmintonIcon from '../assets/goodminton-icon.svg';
 import clsx from 'clsx';
 
 const Layout = ({ children }) => {
@@ -45,13 +46,7 @@ const Layout = ({ children }) => {
                     justifyContent: 'space-between'
                 }}>
                     <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '12px', textDecoration: 'none' }}>
-                        <div style={{
-                            padding: '10px',
-                            borderRadius: '12px',
-                            background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-hover))'
-                        }}>
-                            <Trophy className="text-white" size={22} />
-                        </div>
+                        <img src={goodmintonIcon} alt="" width="32" height="32" />
                         <span style={{
                             fontSize: '20px',
                             fontWeight: 700,
