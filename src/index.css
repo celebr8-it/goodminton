@@ -237,6 +237,67 @@ body {
 }
 
 /* ========== TYPOGRAPHY ========== */
+.match-filters {
+  display: grid;
+  gap: 12px;
+}
+
+.match-filter-label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.match-search-input {
+  position: relative;
+}
+
+.match-search-input > svg {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.match-search-input input {
+  padding-left: 42px;
+}
+
+.match-filter-selects {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.match-filter-selects select {
+  min-width: 0;
+}
+
+.match-filter-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.match-filter-summary button {
+  min-height: 44px;
+}
+
+@media (max-width: 360px) {
+  .match-filter-selects {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .page-title {
   font-size: 28px;
   font-weight: 700;

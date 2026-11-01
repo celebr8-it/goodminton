@@ -5,7 +5,7 @@
  */
 
 import React, { useMemo, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTournament } from '../hooks/useTournament';
 import { TournamentService } from '../services/TournamentService';
 import {
@@ -23,7 +23,9 @@ import {
     Swords,
     GitBranch,
     Lock,
-    Medal
+    Medal,
+    Search,
+    ArrowRight
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import Modal, { ModalFooter } from '../components/Modal';
@@ -34,6 +36,7 @@ import TeamBuilder from '../components/TeamBuilder';
 import { TOURNAMENT_STATUS } from '../lib/constants';
 import { formatShortLabel } from '../lib/scoringFormat';
 import { autoTeamName, firstName, playerDisplayName, teamPlayers } from '../lib/names';
+import { matchesFilters } from '../lib/matchFilters';
 
 const ROUND_PLURAL = { 2: 'Final', 4: 'Semi-finals', 8: 'Quarter-finals' };
 const ROUND_SHORT = { 2: 'F', 4: 'SF', 8: 'QF' };
@@ -42,6 +45,26 @@ const PLAYOFF_CHOICE_LABEL = { 2: 'Final', 4: 'Semis', 8: 'Quarters', 16: 'Last 
 const TournamentDetailPage = () => {
     const { tournamentId } = useParams();
     const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const filters = {
+        query: searchParams.get('q') || '',
+        teamId: searchParams.get('team') || '',
+        status: ['pending', 'played'].includes(searchParams.get('status')) ? searchParams.get('status') : ''
+    };
+    const updateFilter = (key, value) => setSearchParams(previous => {
+        const next = new URLSearchParams(previous);
+        if (value) next.set(key, value);
+        else next.delete(key);
+        // Keep the matches tab open when returning from score entry, including playoffs.
+        next.set('tab', 'matches');
+        return next;
+    }, { replace: true, preventScrollReset: true });
+    const clearFilters = () => setSearchParams(previous => {
+        const next = new URLSearchParams(previous);
+        ['q', 'team', 'status'].forEach(key => next.delete(key));
+        next.set('tab', 'matches');
+        return next;
+    }, { replace: true, preventScrollReset: true });
 
     const {
         tournament,
@@ -130,6 +153,11 @@ const TournamentDetailPage = () => {
     const matchLabel = (m) => m.stage === 'playoff'
         ? `${TournamentService.getRoundLabel(m.round_size)}${m.round_size > 2 ? ` ${m.bracket_slot + 1}` : ''}`
         : `League · Match ${leagueNumber.get(m.id)}`;
+    const filterMatch = (match) => matchesFilters(match, filters, teamsById, matchLabel(match));
+    const visiblePending = pendingMatches.filter(filterMatch);
+    const visiblePlayed = playedMatches.filter(filterMatch);
+    const visibleCount = visiblePending.length + visiblePlayed.length;
+    const hasFilters = !!(filters.query || filters.teamId || filters.status);
 
     const championTeam = phase.championTeamId
         ? teamsById.get(phase.championTeamId)
@@ -146,7 +174,8 @@ const TournamentDetailPage = () => {
         { id: 'teams', label: 'Teams', icon: Users, count: teams.length }
     ].filter(Boolean);
     const defaultTab = isDraft ? 'teams' : phase.hasPlayoffs ? 'playoffs' : 'matches';
-    const activeTab = tabs.some(t => t.id === tab) ? tab : defaultTab;
+    const requestedTab = tab ?? searchParams.get('tab');
+    const activeTab = tabs.some(t => t.id === requestedTab) ? requestedTab : defaultTab;
 
     // ---------- actions ----------
 
@@ -264,7 +293,13 @@ const TournamentDetailPage = () => {
         );
     };
 
-    const openMatch = (m) => navigate(`/matches/${m.id}`);
+    const openMatch = (m) => {
+        const returnParams = new URLSearchParams(searchParams);
+        returnParams.set('tab', activeTab);
+        navigate(`/matches/${m.id}`, {
+            state: { returnTo: `/tournaments/${tournamentId}?${returnParams}` }
+        });
+    };
 
     // ---------- render helpers ----------
 
@@ -319,7 +354,7 @@ const TournamentDetailPage = () => {
 
         return (
             <div className="section-gap list-gap">
-                {nextUp && (
+                {nextUp && !(activeTab === 'matches' && hasFilters) && (
                     <MatchCard
                         match={nextUp}
                         teamsById={teamsById}
@@ -368,19 +403,67 @@ const TournamentDetailPage = () => {
 
     const renderMatchesTab = () => (
         <div className="list-gap" style={{ gap: '20px' }}>
-            {pendingMatches.length > 0 && (
+            {matches.length > 0 && (
+                <div className="match-filters" role="search" aria-label="Find a tournament match">
+                    <label className="match-filter-label" htmlFor="match-search">
+                        Find a match
+                        <span className="match-search-input">
+                            <Search size={18} aria-hidden="true" />
+                            <input
+                                id="match-search"
+                                type="search"
+                                className="input-field"
+                                placeholder="Player, team or match number"
+                                value={filters.query}
+                                onChange={e => updateFilter('q', e.target.value)}
+                            />
+                        </span>
+                    </label>
+                    <div className="match-filter-selects">
+                        <label className="match-filter-label" htmlFor="match-team">
+                            Team
+                            <select id="match-team" className="select-field" value={filters.teamId} onChange={e => updateFilter('team', e.target.value)}>
+                                <option value="">All teams</option>
+                                {teams.map(team => <option key={team.id} value={team.id}>{team.name}</option>)}
+                            </select>
+                        </label>
+                        <label className="match-filter-label" htmlFor="match-status">
+                            Score status
+                            <select id="match-status" className="select-field" value={filters.status} onChange={e => updateFilter('status', e.target.value)}>
+                                <option value="">All matches</option>
+                                <option value="pending">Needs score</option>
+                                <option value="played">Played</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div className="match-filter-summary">
+                        <span role="status">Showing {visibleCount} of {matches.length} matches</span>
+                        {hasFilters && <button type="button" className="btn-link" onClick={clearFilters}>Clear filters</button>}
+                    </div>
+                </div>
+            )}
+            {matches.length > 0 && visibleCount === 0 && (
+                <EmptyState
+                    icon={Search}
+                    title="No matches found"
+                    description="Try another player or team, or clear the filters."
+                    action={<button type="button" className="btn-secondary" onClick={clearFilters}>Clear filters</button>}
+                />
+            )}
+            {visiblePending.length > 0 && (
                 <div>
-                    <div className="eyebrow" style={{ marginBottom: '8px' }}>Up next · {pendingMatches.length}</div>
+                    <div className="eyebrow" style={{ marginBottom: '8px' }}>Up next · {visiblePending.length}</div>
                     <div className="list-gap">
-                        {pendingMatches.map((m, i) => (
+                        {visiblePending.map(m => (
                             <MatchCard
                                 key={m.id}
                                 match={m}
                                 teamsById={teamsById}
                                 seeds={m.stage === 'playoff' ? phase.seeds : undefined}
                                 label={matchLabel(m)}
-                                highlight={i === 0}
+                                highlight={m.id === nextUp?.id}
                                 onClick={() => openMatch(m)}
+                                action={<span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-primary)', fontSize: '13px', fontWeight: 600 }}>Enter score <ArrowRight size={14} aria-hidden="true" /></span>}
                             />
                         ))}
                     </div>
@@ -397,11 +480,11 @@ const TournamentDetailPage = () => {
                 </button>
             )}
 
-            {playedMatches.length > 0 && (
+            {visiblePlayed.length > 0 && (
                 <div>
                     <div className="eyebrow" style={{ marginBottom: '8px' }}>Played · tap to edit</div>
                     <div className="list-gap">
-                        {playedMatches.map(m => (
+                        {visiblePlayed.map(m => (
                             <MatchCard
                                 key={m.id}
                                 match={m}

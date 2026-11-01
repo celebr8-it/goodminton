@@ -6,7 +6,7 @@
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useMatch } from '../hooks/useMatch';
 import {
     ArrowLeft,
@@ -34,6 +34,7 @@ const emptySets = (count) => Array.from({ length: count }, () => ({ a: '', b: ''
 const MatchDetail = () => {
     const { matchId } = useParams();
     const navigate = useNavigate();
+    const { state: navigationState } = useLocation();
     const { match, tournament, nextMatch, loading, error, saving, saveResult } = useMatch(matchId);
 
     const [editing, setEditing] = useState(false);
@@ -113,7 +114,10 @@ const MatchDetail = () => {
     const teamB = match.team_b;
     const isStandalone = !match.tournament_id && match.group_id;
     const isCompleted = !!match.winner_team_id;
-    const backPath = isStandalone ? `/groups/${match.group_id}` : `/tournaments/${match.tournament_id}`;
+    const defaultBackPath = isStandalone ? `/groups/${match.group_id}` : `/tournaments/${match.tournament_id}`;
+    const returnTo = navigationState?.returnTo;
+    const backPath = !isStandalone && typeof returnTo === 'string' && returnTo.startsWith(`${defaultBackPath}?`)
+        ? returnTo : defaultBackPath;
     const stageLabel = isStandalone
         ? 'Friendly match'
         : match.stage === MATCH_STAGE.PLAYOFF
@@ -325,7 +329,7 @@ const MatchDetail = () => {
                     <div className="action-bar list-gap">
                         {nextMatch && (
                             <button
-                                onClick={() => { setSavedNotice(null); navigate(`/matches/${nextMatch.id}`); }}
+                                onClick={() => { setSavedNotice(null); navigate(`/matches/${nextMatch.id}`, { state: { returnTo: backPath } }); }}
                                 className="btn-primary btn-lg btn-block"
                             >
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
